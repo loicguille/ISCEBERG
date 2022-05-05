@@ -1,0 +1,31 @@
+---
+title: "Log file"
+author: "Loïc Guille"
+date: "25/03/2022"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Single cell browser version 1.0
+
+Contact : loic.guille@univ-lille.fr
+
+U1011 Nuclear receptors, Metabolic and cardiovasculary disease
+
+github : https://github.com/loicguille/beta_scBrowser
+
+## Packages used :
+
+```{r package}
+sessionInfo()
+```
+
+## Command used :
+
+```{r command}
+
+```
+
