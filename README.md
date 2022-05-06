@@ -5,7 +5,7 @@
 
 ## Overview of ISCEBERG
 
-Here is our single cell data explorer in shiny this has been build in order to analyse/vizualize and extract informations from single cell datasets. This application will allow you to analyze you proper single cell datasets (RDS, H5, MTX, TXT or CSV) or to vizualize one of the several dataset that have already been analyze by our team. The purpose of this application is to allow the user to download dataframe or plot or even subset of the dataset of interest.
+Here is our single cell data explorer shiny,  this has been developped in order to analyze/vizualize and extract informations from single cell datasets. This application can transform raw counts into single cell dataset from different input format (H5, MTX, TXT or CSV) or allow you to give as input a preprocess RDS file that contain already a single cell dataset in format Seurat. The purpose of this application is to go much deeper into your single cell datasets without using code lines.
 
 ## Citation
 
