@@ -12,8 +12,8 @@ Here is our single cell data explorer in shiny this has been build in order to a
 All the functionnality are listed here, for more details see Documentation section :
 
 - Pre-processing (read, create and apply a first filtering on your data)
-- filtering (only if you choose Mtx, H5, Txt, or Csv, apply a filtering on your dataset and show some QC plot)
-- QC (only if you choose RDS, show some QC plot)
+- filtering (only if you have chosen  Mtx, H5, Txt, or Csv, apply a filtering on your dataset and show some QC plot)
+- QC (only if you have chosen RDS, show some QC plot)
 -  Cluster tree (create a cluster tree from different resolution in the object)
 -  DE between cluster
 -  Data mining (Plot expression of one or several genes with different vizualisation method)
@@ -44,4 +44,4 @@ Then type the adress in your web browser :
 
 ## Documentation
 
-Help is available in Documentation directory. 
+Help is available in Documentation directory in the document [Help.md](https://github.com/loicguille/ISCEBERG/blob/master/Documentation/Help.md). 
