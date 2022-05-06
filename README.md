@@ -26,9 +26,9 @@ All the functionnality are listed here, for more details see Documentation secti
 
 Here is the procedure in order to install application :
 
-`gitclone isceberg`
+`gitclone ISCEBERG`
 
-`cd isceberg`
+`cd ISCEBERG`
 
 In order to create a docker image run the command
 
