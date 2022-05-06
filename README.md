@@ -1,7 +1,7 @@
 # ISCEBERG
 ## Interactive Single Cell Expression Browser for Exploration of RNAseq data using Graphics 
 
-<img src=application/www/iceberg.png height="200">
+<img src=application/www/iceberg2.png height="200">
 
 ## Overview of ISCEBERG
 
