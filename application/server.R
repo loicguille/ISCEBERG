@@ -1269,7 +1269,7 @@ server <- function(input, output,session) {
                     })
                     withProgress(message ="Find cluster", value=0,{
                         for(i in seq(0,1,0.1)){
-                            incProgress(i*10/10,message =paste0("res ",i,"/10"))
+                            incProgress(i*10/10,message =paste0("res ",i*10,"/10"))
                             subsetSeuratObj <<- FindClusters(subsetSeuratObj, res =i)
                         }
                         
@@ -2288,7 +2288,7 @@ server <- function(input, output,session) {
                 })
                 withProgress(message ="Find cluster", value=0,{
                     for(i in seq(0,1,0.1)){
-                        incProgress(i*10/10,message =paste0("res ",i,"/10"))
+                        incProgress(i*10/10,message =paste0("res ",i*10,"/10"))
                         subsetSeuratObj <<- FindClusters(subsetSeuratObj, res =i)
                     }
                     
