@@ -1,6 +1,8 @@
 # ISCEBERG
 ## Interactive Single Cell Expression Browser for Exploration of RNAseq data using Graphics 
 
+<img src=application/www/iceberg.png height="200">
+
 ## Overview of ISCEBERG
 
 Here is our single cell data explorer in shiny this has been build in order to analyse/vizualize and extract informations from single cell datasets. This application will allow you to analyze you proper single cell datasets (RDS, H5, MTX, TXT or CSV) or to vizualize one of the several dataset that have already been analyze by our team. The purpose of this application is to allow the user to download dataframe or plot or even subset of the dataset of interest.
