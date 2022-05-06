@@ -14,7 +14,7 @@ Several options can be choosed :
 
 Once you have choosen the type of file, you can change the values we used and recommend by default for the preprocessing for values for the minimal number of time that a gene has to be expressed to be keeped and the number of genes a cells has to expressed to be keeped 
 
-## Filtering page (if you have choose H5, CSV, MTX or TXT)
+## Filtering page (if you have chosen H5, CSV, MTX or TXT)
 
 Once your seurat object is created you have to filter it with some values, in general we apply filter on the percent max of gene mitotic by cells (which is fixed by default to 25%), Seurat also recommend to filter on the cells that expressed a low number of genes which can be uninformative, the values of this filter is fixed by default to 500 genes by cells minimum but can be easily change in function of your datasets. Seurat also consider that a maximum number of genes expressed by cells have to be apply on the data because cell doublets or multiplets may exhibit an aberrantly high gene count.
 
@@ -38,7 +38,7 @@ Once the analysis is done several QC plot will appear in order to check how your
 
 Some button will also appear once the filter have been run on the dataset, one to save the dataset you have filtered, and one to download the log file containing the version of the package used to analyze the data and the command with the filter you have made on the dataset. In order to download this two files you will have to provide a name.
 
-## QC page (if you have choose available data or RDS)
+## QC page (if you have chosen RDS)
  
 This page all the user to check the same plot ads the results of the filtering page (Phase, nmber of expressed cells, clustering, ...)
 
