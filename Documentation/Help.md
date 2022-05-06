@@ -1,6 +1,6 @@
 # ISCEBERG 
 
-<img src=application/www/iceberg2.png height="200">
+<img src=../application/www/iceberg2.png height="200">
 
 ## Pre-processing
 
