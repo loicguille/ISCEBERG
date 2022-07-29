@@ -58,7 +58,7 @@ Loïc Guille;  Manuel Johanns;  Francesco Zummo;  Bart Staels;  Philippe Lefebvr
 
 ## Grants
 
-This work was supported by the Agence Nationale de la Recherche (ANR) grants “HSCreg” (ANR-21-CE14-0032-01) , “European Genomic Institute for Diabetes” E.G.I.D (ANR-10-849 LABX-0046), a French State fund managed by ANR under the frame program Investissements d’Avenir I-SITE ULNE / ANR-16-IDEX-0004 ULNE,  by grants from the Fondation pour la Recherche Médicale (FRM : EQU202203014645) and by European Comission
+This work was supported by the Agence Nationale de la Recherche (ANR) grants “HSCreg” (ANR-21-CE14-0032-01) , “European Genomic Institute for Diabetes” E.G.I.D (ANR-10-849 LABX-0046), a French State fund managed by ANR under the frame program Investissements d’Avenir I-SITE ULNE / ANR-16-IDEX-0004 ULNE,  by grants from the Fondation pour la Recherche Médicale (FRM : EQU202203014645) and by European Commission
 
 Agence Nationale de la Recherche:
     
