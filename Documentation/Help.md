@@ -14,9 +14,9 @@ Several options can be chosen :
 
 - H5 : the H5 format is the major output for single-cell sequencing data and you will just have to load file(s) in this format to create an output. You can also add metadata.
 
-- RDS : if you choose RDS format you have to load preprocessed data with Seurat and save in RDS format. The object opened has to be a Seurat object otherwise it will be impossible to open it.
+- RDS : if you choose RDS format you have to load preprocessed data with Seurat and save in RDS format. The object opened has to be a Seurat object otherwise it will be impossible to open it. This object has to contain at least a normalization slot (RNA and or SCT), coordinate for UMAP projection (not t-sne) and at least one resolution for clustering. It can also contain annotation.  
 
-Once you have chosen the type of file, you can change the values we used and recommend by default for the preprocessing concerning the minimal number of time that a gene has to be expressed to be kept and the number of genes a cells has to express to be kept. 
+Once you have chosen the type of file, you can change the values we used and recommended by default for the preprocessing concerning the minimal number of time that a gene has to be expressed to be kept and the number of genes a cells has to express to be kept. This two filter can be redundant with the further filtering that we will apply but are useful in order to reduce the RAM used for the creation of seurat object. 
 
 ## Filtering page (if you have chosen H5, CSV, MTX or TXT)
 
