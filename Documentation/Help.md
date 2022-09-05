@@ -1,5 +1,9 @@
 # ISCEBERG 
 
+## Citation
+
+Loïc Guille, Manuel Johanns, Francesco Zummo, Bart Staels, Philippe Lefebvre, Jérôme Eeckhoute, & Julie Dubois-Chevalier. (2022). ISCEBERG : Interactive Single Cell Expression Browser for Exploration of RNAseq data using Graphics (v1.0.1). Zenodo. https://doi.org/10.5281/zenodo.6563734
+
 ## Pre-processing
 
 Several options can be chosen : 
