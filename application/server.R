@@ -32,10 +32,9 @@ server <- function(input, output,session) {
     hideTab(inputId = "tabs", target = "QC")
     shinyjs::hide("Refresh")
     ##### read survey to give the rds available on the application ######
-    infodatas <- read.csv("SingleCell_survey.csv",header = TRUE,sep = ";")
-    output$dataoverview <- DT::renderDataTable(DT::datatable({
-        infodatas
-    }, escape = FALSE,options = list(scrollX = TRUE)))
+    output$Isceberg <- renderUI({
+      img(src = "iceberg2.png", height = "90%", width ="90%")
+    })
     output$memoryCons <- renderUI({
         img(src = "nb_giga.jpeg", height = "90%", width ="90%")
         })
@@ -473,14 +472,22 @@ server <- function(input, output,session) {
                 ####### Data Mining one gene #######
                 ####################################
                 updateSelectizeInput(session, "ResolutionDataMining", choices=available_resolution, server=TRUE)
+                toremove <- c(grep(names(SeuratObjsubset@meta.data),pattern ="*_snn_res.*", value =T),grep(names(SeuratObjsubset@meta.data),pattern ="nCount_*", value =T),grep(names(SeuratObjsubset@meta.data),pattern ="nFeature_*", value =T),"percent.mt","S.Score", "G2M.Score")
+                varAvail <- names(SeuratObjsubset@meta.data)
+                varAvail <- varAvail[-which(varAvail %in% toremove)]
+                updateSelectizeInput(session, "AnnotationDataMining", choices = varAvail, server = TRUE)
                 gene <- SeuratObjsubset@assays$RNA@counts@Dimnames[[1]]
                 updateSelectizeInput(session,"GeneList", choices=gene, server = TRUE)
-                toListen <- reactive({list(input$ResolutionDataMining, input$keepscale,input$format)})
+                toListen <- reactive({list(input$ResolutionDataMining, input$keepscale,input$format, input$AnnotationDataMining,input$ResOrAnnot)})
                 observeEvent(toListen(),{
                     if(input$format =="SVG"){
                         shinyalert("warning", "SVG format is a good choice of graph for your paper because it can be easily formated but is heavier than PNG", "warning")
                     }
-                    Idents(SeuratObjsubset) <- input$ResolutionDataMining
+                    if(input$ResOrAnnot == "Resolution"){
+                      Idents(SeuratObjsubset) <- input$ResolutionDataMining 
+                    }else{
+                      Idents(SeuratObjsubset) <- input$AnnotationDataMining
+                    }
                     FP <- function(){
                         validate(
                             need(input$GeneList != "","Select at least one gene")
@@ -604,8 +611,11 @@ server <- function(input, output,session) {
                             }
                         )
                     }
-                    
-                    dataTableCat <- reactive(aggregate(FetchData(SeuratObjsubset, vars=input$GeneList),data.frame(SeuratObjsubset[[input$ResolutionDataMining]]),mean))
+                    if(input$ResOrAnnot == "Resolution"){
+                      dataTableCat <- reactive(aggregate(FetchData(SeuratObjsubset, vars=input$GeneList),data.frame(SeuratObjsubset[[input$ResolutionDataMining]]),mean))
+                    }else{
+                      dataTableCat <- reactive(aggregate(FetchData(SeuratObjsubset, vars=c(input$GeneList)),data.frame(SeuratObjsubset[[input$AnnotationDataMining]]),mean))
+                    }
                     output$geneExp <- DT::renderDataTable({
                         validate(
                             need(input$GeneList != "","You have to choose at least one gene and here you will have for the mean of the expression for each cluster.")
@@ -623,53 +633,98 @@ server <- function(input, output,session) {
                     output$clusterOutput<- renderPlot({
                         DimPlot(SeuratObjsubset, label = TRUE, label.size = 6)
                     })
+                    dataMatrixEntire <- reactive(FetchData(SeuratObjsubset, vars=input$GeneList))
+                    output$downloadMatrix <- downloadHandler(
+                      filename = function(){
+                        paste('Matrix_',Sys.Date(),'.csv', sep ='')
+                      },
+                      content = function(file){
+                        write.csv(dataMatrixEntire(), file)
+                      }
+                    )
                 })
                 ######################################################
                 ############# Multiple genes data mining #############
                 ######################################################
                 updateSelectizeInput(session,"clusterwatch",choices =available_resolution,server =TRUE)
+                toremove <- c(grep(names(SeuratObjsubset@meta.data),pattern ="*_snn_res.*", value =T),grep(names(SeuratObjsubset@meta.data),pattern ="nCount_*", value =T),grep(names(SeuratObjsubset@meta.data),pattern ="nFeature_*", value =T),"percent.mt","S.Score", "G2M.Score")
+                varAvail <- names(SeuratObjsubset@meta.data)
+                varAvail <- varAvail[-which(varAvail %in% toremove)]
+                updateSelectizeInput(session, "annotationwatch", choices = varAvail, server = TRUE)
                 updateSelectizeInput(session,"GeneListPool", choices=gene, server = TRUE)
-                listen_page_mining_mult_genes <- reactive({list(input$clusterwatch,input$SumorMeans,input$GeneListPool,input$format2)})
+                listen_page_mining_mult_genes <- reactive({list(input$ResOrAnnotMult,input$annotationwatch,input$clusterwatch,input$SumorMeans,input$GeneListPool,input$format2)})
                 #reactive graph from sum or mean button 
                 observeEvent(listen_page_mining_mult_genes(),{
                     if(input$format2 =="SVG"){
                         shinyalert("warning", "SVG format is a good choice of graph for your paper because it can be easily formated but is heavier than PNG", "warning")
                     }
-                    Idents(SeuratObjsubset) <- input$clusterwatch
+                    if(input$ResOrAnnotMult == "Resolution"){
+                      Idents(SeuratObjsubset) <- input$clusterwatch 
+                    }else{
+                      Idents(SeuratObjsubset) <- input$annotationwatch
+                    }
                     coord <- Embeddings(SeuratObjsubset[["umap"]])[,1:2]
                     output$dimplotSeurat4page <- renderPlot({
                         DimPlot(SeuratObjsubset, label = TRUE, label.size = 6)
                     })
-                    validate(
-                        need(input$GeneListPool !="", "Can't display anything while you don't have choose one gene at least")
-                    )
-                    poolexpTable <- reactive(aggregate(FetchData(SeuratObjsubset, vars=c(input$GeneListPool)),data.frame(SeuratObjsubset[[input$clusterwatch]]),mean))
+                    
+                    PoolExpTable <- reactive({
+                      if(input$ResOrAnnotMult == "Resolution"){
+                        out <- aggregate(FetchData(SeuratObjsubset, vars=c(input$GeneListPool)),data.frame(SeuratObjsubset[[input$clusterwatch]]),mean)
+                      }else{
+                        out <- aggregate(FetchData(SeuratObjsubset, vars=c(input$GeneListPool)),data.frame(SeuratObjsubset[[input$annotationwatch]]),mean)
+                      }
+                      out
+                    })
                     output$sumGeneexp <- DT::renderDataTable({
-                        DT::datatable(poolexpTable(), options = list(scrollX = TRUE), rownames = F)                
+                      validate(
+                        need(input$GeneListPool !="", " ")
+                      )
+                      DT::datatable(PoolExpTable(), options = list(scrollX = TRUE), rownames = F)
                     })
                     output$downloadSumGeneExp<- downloadHandler(
-                        filename = function(){
-                            paste('data_',Sys.Date(),'.csv',sep = '')
-                        },
-                        content=function(file){
-                            write.csv(poolexpTable(),file)
-                        }
+                      filename = function(){
+                        paste('data_',Sys.Date(),'.csv',sep = '')
+                      },
+                      content=function(file){
+                        write.csv(PoolExpTable(),file)
+                      }
                     )
-                    observeEvent(input$fileGeneList,{
-                        list_gene_file <- read.csv(input$fileGeneList$datapath, header=TRUE)
-                        colnames(list_gene_file) <- "cluster"
-                        exprPoolFromFile <- reactive(aggregate(FetchData(SeuratObjsubset, vars=c(list_gene_file$cluster)), data.frame(SeuratObjsubset[[input$clusterwatch]]), mean))
-                        output$meanGeneExpPooledfromFile <- DT::renderDataTable({
-                            DT::datatable(exprPoolFromFile(), options = list(scrollX =TRUE), rownames=F)
-                        })
-                        output$downloadmeanGeneExpPooledfromFile<- downloadHandler(
-                            filename = function(){
-                                paste('data_',Sys.Date(),'.csv',sep = '')
-                            },
-                            content=function(file){
-                                write.csv(exprPoolFromFile(),file)
-                            })
+                    
+                    createEntireMatrix <- reactive({
+                      if(input$SumorMeans =="Sum" | input$SumorMeans == "Mean"){
+                        if (input$SumorMeans == "Sum"){
+                          if(input$ResOrAnnotMult == "Resolution"){
+                            expressionMatrixEntire <- cbind(geneList = rowSums(FetchData(SeuratObjsubset, vars =c(input$GeneListPool))),SeuratObjsubset[[input$clusterwatch]])
+                          }else{
+                            expressionMatrixEntire <- cbind(geneList = rowSums(FetchData(SeuratObjsubset, vars =c(input$GeneListPool))),SeuratObjsubset[[input$annotationwatch]])
+                          }
+                        }else{
+                          if(input$ResOrAnnotMult == "Resolution"){
+                            expressionMatrixEntire <- cbind(geneList = rowMeans(FetchData(SeuratObjsubset, vars =c(input$GeneListPool))),SeuratObjsubset[[input$clusterwatch]])
+                          }else{
+                            expressionMatrixEntire <- cbind(geneList = rowMeans(FetchData(SeuratObjsubset, vars =c(input$GeneListPool))),SeuratObjsubset[[input$annotationwatch]])
+                          }
+                        }
+                      }else{
+                        sbt <- AddModuleScore(SeuratObjsubset, features =list(input$GeneListPool), name = "Gene_list")
+                        if(input$ResOrAnnotMult == "Resolution"){
+                          expressionMatrixEntire <- cbind(sbt[["Gene_list1"]],sbt[[input$clusterwatch]])
+                        }else{
+                          expressionMatrixEntire <- cbind(sbt[["Gene_list1"]],sbt[[input$annotationwatch]])
+                        }
+                      }
+                      expressionMatrixEntire
                     })
+                    output$downloadMatrixMultList <- downloadHandler(
+                      filename = function(){
+                        paste('Entire_matrix_',Sys.Date(),'.csv',sep = '')
+                      },
+                      content=function(file){
+                        write.csv(createEntireMatrix(),file)
+                      }
+                    )
+          
                     poolGene <- function(){
                         validate(
                             need(input$GeneListPool != "","Choose at least one gene to display projection. This plot can pool some gene and get the sum of the normalized counts. \nAddModuleScore function will calculate the average expression levels of each program (cluster) on single cell level, subtracted by the aggregated expression of control feature sets. All analyzed features are binned based on averaged expression, and the control features are randomly selected from each bin.")
@@ -697,9 +752,19 @@ server <- function(input, output,session) {
                         )
                         if(input$SumorMeans =="Sum" | input$SumorMeans == "Mean"){
                             if(input$SumorMeans == "Sum"){
-                                pool_genesVln <- cbind(SeuratObjsubset[[input$clusterwatch]],rowSums(FetchData(SeuratObjsubset, vars = c(input$GeneListPool))))
+                                if(input$ResOrAnnotMult == "Resolution"){
+                                  pool_genesVln <- cbind(SeuratObjsubset[[input$clusterwatch]],rowSums(FetchData(SeuratObjsubset, vars = c(input$GeneListPool))))
+                                }else{
+                                  pool_genesVln <- cbind(SeuratObjsubset[[input$annotationwatch]],rowSums(FetchData(SeuratObjsubset, vars = c(input$GeneListPool))))
+                                }
+                                
                             }else{
-                                pool_genesVln <- cbind(SeuratObjsubset[[input$clusterwatch]],rowMeans(FetchData(SeuratObjsubset, vars = c(input$GeneListPool))))
+                                if(input$ResOrAnnotMult == "Resolution"){
+                                  pool_genesVln <- cbind(SeuratObjsubset[[input$clusterwatch]],rowMeans(FetchData(SeuratObjsubset, vars = c(input$GeneListPool))))
+                                }else{
+                                  pool_genesVln <- cbind(SeuratObjsubset[[input$annotationwatch]],rowMeans(FetchData(SeuratObjsubset, vars = c(input$GeneListPool))))
+                                }
+                                
                             }
                             colnames(pool_genesVln) <- c("resolution","GeneList")
                             ggplot(pool_genesVln, aes(x=resolution,y=GeneList, fill = resolution))+geom_violin()+scale_fill_hue()
@@ -716,7 +781,11 @@ server <- function(input, output,session) {
                             need(input$GeneListPool != "", "Choose at least one gene to display dot plot")
                         )
                         if(input$SumorMeans == "Sum"){
-                            Idents(SeuratObjsubset) <-  input$clusterwatch
+                            if(input$ResOrAnnotMult == "Resolution"){
+                              Idents(SeuratObjsubset) <- input$clusterwatch 
+                            }else{
+                              Idents(SeuratObjsubset) <- input$annotationwatch
+                            }
                             test <- as.data.frame(cbind(rowSums(FetchData(SeuratObjsubset, vars =c(input$GeneListPool))),SeuratObjsubset[[input$clusterwatch]]))
                             colnames(test)<- c("V1","V2")
                             percentExpressed <- test %>% group_by(V2) %>%count(V1 > 0)
@@ -731,7 +800,11 @@ server <- function(input, output,session) {
                             ggplot(percent , aes(x= GeneList, y  = cluster , size = RatioCellsExpressingGeneList, color = SumExp))+geom_point()+scale_color_gradient(low = "lightgrey", high= "blue")
                             
                         }else if(input$SumorMeans=="Mean"){
-                            Idents(SeuratObjsubset) <-  input$clusterwatch
+                            if(input$ResOrAnnotMult == "Resolution"){
+                              Idents(SeuratObjsubset) <- input$clusterwatch 
+                            }else{
+                              Idents(SeuratObjsubset) <- input$annotationwatch
+                            }
                             test <- as.data.frame(cbind(rowMeans(FetchData(SeuratObjsubset, vars =c(input$GeneListPool))),SeuratObjsubset[[input$clusterwatch]]))
                             colnames(test)<- c("V1","V2")
                             percentExpressed <- test %>% group_by(V2) %>%count(V1 > 0)
@@ -812,169 +885,283 @@ server <- function(input, output,session) {
                                 dev.off()
                             }
                         )
+                    }   
+                })
+                ######################################### Gene list from file ################################
+                #First of all we checked that every genes in the gene list are contained in the seurat object, if not we keep only those that are in the seurat object
+                observeEvent(input$fileGeneList,{
+                  CheckGenes <- reactive({
+                    validate(
+                      need(input$fileGeneList,"Choose a file that contain a list of genes to display the projection.")
+                    )
+                    list_gene_file <- read.csv(input$fileGeneList$datapath, header=TRUE)
+                    colnames(list_gene_file) <- "cluster"
+                    list_gene_file <- list_gene_file$cluster
+                    before <- length(list_gene_file)
+                    list_gene_file <- list_gene_file[list_gene_file %in% rownames(seuratObj)]
+                    if(length(list_gene_file) != before){
+                      shinyalert("Some genes cannot be found in this object, they have been removed", type = "warning")
                     }
-                    
-                    
+                  })
+                  CheckGenes()
                 })
                 
-                listformatandTypes <- reactive({list(input$format2,input$SumorMeans)})
-                observeEvent(listformatandTypes(),{
+                listen_page_mining_mult_genes_from_file <- reactive({list(input$ResOrAnnotMult,input$clusterwatch,input$annotationwatch,input$SumorMeans,input$fileGeneList, input$format2)})
+                observeEvent(listen_page_mining_mult_genes_from_file(),{
+                  # read file to and pass the good list for further analysis
+                  Readfile <- function(){
+                    validate(
+                      need(input$fileGeneList, " ")
+                    )
+                    list_gene_file <- read.csv(input$fileGeneList$datapath, header=TRUE)
+                    colnames(list_gene_file) <- "cluster"
+                    list_gene_file <- list_gene_file$cluster
+                    list_gene_file <- list_gene_file[list_gene_file %in% rownames(SeuratObjsubset)]
+                    list_gene_file
+                  }
+                  exprPoolFromFile <- reactive({
+                    list_gene_file <- Readfile()
+                    if(input$ResOrAnnotMult == "Resolution"){
+                      outFile <- aggregate(FetchData(SeuratObjsubset, vars=c(list_gene_file)), data.frame(SeuratObjsubset[[input$clusterwatch]]), mean)
+                    }else{
+                      outFile <- aggregate(FetchData(SeuratObjsubset, vars=c(list_gene_file)), data.frame(SeuratObjsubset[[input$annotationwatch]]), mean)
+                    }
+                    outFile
+                  })
+                  output$meanGeneExpPooledfromFile <- DT::renderDataTable({
+                    DT::datatable(exprPoolFromFile(), options = list(scrollX =TRUE), rownames=F)
+                  })
+                  
+                  output$downloadmeanGeneExpPooledfromFile<- downloadHandler(
+                    filename = function(){
+                      paste('data_',Sys.Date(),'.csv',sep = '')
+                    },
+                    content=function(file){
+                      write.csv(exprPoolFromFile(),file)
+                    }
+                  )
+                  
+                  finaleExpressionMatrixFromFile <- reactive({
+                    list_gene_file <- Readfile() 
+                    if(input$SumorMeans =="Sum" | input$SumorMeans == "Mean"){
+                      if (input$SumorMeans == "Sum"){
+                        if(input$ResOrAnnotMult == "Resolution"){
+                          expressionMatrixEntireFile <- cbind(geneList = rowSums(FetchData(SeuratObjsubset, vars =c(list_gene_file))),SeuratObjsubset[[input$clusterwatch]])
+                        }else{
+                          expressionMatrixEntireFile <- cbind(geneList = rowSums(FetchData(SeuratObjsubset, vars =c(list_gene_file))),SeuratObjsubset[[input$annotationwatch]])
+                        }
+                      }else{
+                        if(input$ResOrAnnotMult == "Resolution"){
+                          expressionMatrixEntireFile <- cbind(geneList =rowMeans(FetchData(SeuratObjsubset, vars =c(list_gene_file))),SeuratObjsubset[[input$clusterwatch]])
+                        }else{
+                          expressionMatrixEntireFile <- cbind(geneList =rowMeans(FetchData(SeuratObjsubset, vars =c(list_gene_file))),SeuratObjsubset[[input$annotationwatch]])
+                        }
+                      }
+                    }else{
+                      sbt1 <- AddModuleScore(SeuratObjsubset, features =list_gene_file, name = "Gene_list")
+                      if(input$ResOrAnnotMult == "Resolution"){
+                        expressionMatrixEntireFile <- cbind(sbt1[["Gene_list1"]],sbt1[[input$clusterwatch]])
+                      }else{
+                        expressionMatrixEntireFile <- cbind(sbt1[["Gene_list1"]],sbt1[[input$annotationwatch]])
+                      }
+                    }
+                    expressionMatrixEntireFile
+                  })
+                  
+                  output$downloadMatrixMultFile <- downloadHandler(
+                    filename = function(){
+                      paste('Entire_matrix_',Sys.Date(),'.csv',sep = '')
+                    },
+                    content=function(file){
+                      write.csv(finaleExpressionMatrixFromFile(),file)
+                    }
+                  )
+                  
+                  poolGeneFromList <- function(){
+                    validate(
+                      need(input$fileGeneList,"Choose a file that contain a list of genes to display the projection.This plot will show the pool of each gene expression for each gene id contained in the file. \nExample of a file :\nHeader\nMlxipl\nSox9\nEtc...  ")
+                    )
                     coord <- Embeddings(SeuratObjsubset[["umap"]])[,1:2]
-                    poolGeneFromList <- function(){
-                        validate(
-                            need(input$fileGeneList,"Choose a file that contain a list of genes to display the projection.This plot will show the pool of each gene expression for each gene id contained in the file. \nExample of a file :\nMlxipl\nSox9\nEtc...  ")
-                        )
-                        gene_list <- read.csv(input$fileGeneList$datapath, header=TRUE)
-                        colnames(gene_list) <- "cluster"
-                        if(input$SumorMeans =="Sum" | input$SumorMeans == "Mean"){
-                            if(input$SumorMeans =="Sum"){
-                                gene_list_pooled <- rowSums(FetchData(SeuratObjsubset, vars = gene_list$cluster))
-                            }
-                            if(input$SumorMeans =="Mean"){
-                                gene_list_pooled <- rowMeans(FetchData(SeuratObjsubset, vars = gene_list$cluster))
-                            }
-                            gene_list_pooled <- cbind.data.frame(coord, counts = gene_list_pooled)
-                            ggplot(gene_list_pooled)+geom_point(aes(UMAP_1,UMAP_2, color = counts),shape=20, size=0.25)+ scale_color_gradient(low="lightgrey",high="blue") + theme_classic()
-                        }else{
-                            sbt1 <- AddModuleScore(SeuratObjsubset, features =list(gene_list$cluster), name = "Gene_list")
-                            FeaturePlot(sbt1, features = "Gene_list1")
-                        }
-                    }
-                    poolGenefromListVP <- function(){
-                        validate(
-                            need(input$fileGeneList,"Choose a file that contain a list of genes to display the projection.")
-                        )
-                        gene_list <- read.csv(input$fileGeneList$datapath, header=TRUE)
-                        colnames(gene_list) <- "cluster"
-                        if(input$SumorMeans =="Sum" | input$SumorMeans == "Mean"){
-                            if(input$SumorMeans =="Sum"){
-                                pool_genesVln <- cbind(SeuratObjsubset[[input$clusterwatch]],rowSums(FetchData(SeuratObjsubset, vars = gene_list$cluster)))
-                            }
-                            if(input$SumorMeans =="Mean"){
-                                pool_genesVln <- cbind(SeuratObjsubset[[input$clusterwatch]],rowMeans(FetchData(SeuratObjsubset, vars = gene_list$cluster)))
-                            }
-                            colnames(pool_genesVln) <- c("resolution","GeneList")
-                            ggplot(pool_genesVln, aes(x=resolution,y=GeneList, fill = resolution))+geom_violin()+scale_fill_hue()
-                        }else{
-                            Idents(SeuratObjsubset) <- input$clusterwatch
-                            sbt1 <- AddModuleScore(SeuratObjsubset, features =list(gene_list$cluster), name = "Gene_list")
-                            VlnPlot(sbt1, features = "Gene_list1")
-                        }
-                        
-                    }
-                    output$ViolinPlotMultGenesPooledFilesInput <- renderPlot({
-                        poolGenefromListVP()
-                    })
-                    
-                    DotplotPooledFromFile <- function(){
-                        validate(
-                            need(input$fileGeneList, "Choose a file that contain a list of genes to display the projection.")
-                        )
-                        gene_list <- read.csv(input$fileGeneList$datapath, header=TRUE)
-                        colnames(gene_list) <- "cluster"
-                        if(input$SumorMeans == "Sum"){
-                            Idents(SeuratObjsubset) <-  input$clusterwatch
-                            test <- as.data.frame(cbind(rowSums(FetchData(SeuratObjsubset, vars =gene_list$cluster)),SeuratObjsubset[[input$clusterwatch]]))
-                            colnames(test)<- c("V1","V2")
-                            percentExpressed <- test %>% group_by(V2) %>%count(V1 > 0)
-                            colnames(percentExpressed) <- c("cluster", "logical","number")
-                            percentExpressed <- filter(percentExpressed, logical == "TRUE")
-                            totalCellsbyCluster <- test %>% group_by(V2) %>% tally()
-                            percent <- percentExpressed$number/totalCellsbyCluster$n
-                            percent <- as.data.frame(cbind(cluster = levels(SeuratObjsubset),RatioCellsExpressingGeneList = percent))
-                            avgExpression <-test %>% group_by(V2) %>%summarise(avg =sum(V1))
-                            percent <- cbind(percent, SumExp =avgExpression$avg, GeneList = rep("Gene_list",length(percent$cluster)))
-                            percent$RatioCellsExpressingGeneList <- as.numeric(percent$RatioCellsExpressingGeneList)
-                            ggplot(percent , aes(x= GeneList, y  = cluster , size = RatioCellsExpressingGeneList, color = SumExp))+geom_point()+scale_color_gradient(low = "lightgrey", high= "blue")
-                            
-                        }else if (input$SumorMeans == "Mean"){
-                            Idents(SeuratObjsubset) <-  input$clusterwatch
-                            test <- as.data.frame(cbind(rowMeans(FetchData(SeuratObjsubset, vars =gene_list$cluster)),SeuratObjsubset[[input$clusterwatch]]))
-                            colnames(test)<- c("V1","V2")
-                            percentExpressed <- test %>% group_by(V2) %>%count(V1 > 0)
-                            colnames(percentExpressed) <- c("cluster", "logical","number")
-                            percentExpressed <- filter(percentExpressed, logical == "TRUE")
-                            totalCellsbyCluster <- test %>% group_by(V2) %>% tally()
-                            percent <- percentExpressed$number/totalCellsbyCluster$n
-                            percent <- as.data.frame(cbind(cluster = levels(SeuratObjsubset),RatioCellsExpressingGeneList = percent))
-                            avgExpression <-test %>% group_by(V2) %>%summarise(avg =mean(V1))
-                            percent <- cbind(percent, AvgExp =avgExpression$avg, GeneList = rep("Gene_list",length(percent$cluster)))
-                            percent$RatioCellsExpressingGeneList <- as.numeric(percent$RatioCellsExpressingGeneList)
-                            ggplot(percent , aes(x= GeneList, y  = cluster , size = RatioCellsExpressingGeneList, color = AvgExp))+geom_point()+scale_color_gradient(low = "lightgrey", high= "blue")
-                        }else{
-                            Idents(SeuratObjsubset) <- input$clusterwatch
-                            sbt1 <- AddModuleScore(SeuratObjsubset, features =list(gene_list$cluster), name = "Gene_list")
-                            DotPlot(sbt1, features = "Gene_list1")
-                        }
-                        
-                    }
-                    output$DotPlotMultGenePooledFromFile <- renderPlot({
-                        DotplotPooledFromFile()
-                    })
-                    if(input$format2 == "PNG"){
-                        output$downloadViolinPlotMultGenesPooledFilesInput <- downloadHandler(
-                            filename = "ViolinPlotMultGenesPooled.png",
-                            content = function(file){
-                                png(file, width = 1500 , height = 1100,res = 150)
-                                print(poolGenefromListVP())
-                                dev.off()
-                            }
-                        )
+                    gene_list <- Readfile()
+                    if(input$ResOrAnnotMult == "Resolution"){
+                      Idents(SeuratObjsubset) <- input$clusterwatch
                     }else{
-                        output$downloadViolinPlotMultGenesPooledFilesInput <- downloadHandler(
-                            filename = "ViolinPlotMultGenesPooled.svg",
-                            content = function(file){
-                                svg(file, width = 14 , height = 7)
-                                print(poolGenefromListVP())
-                                dev.off()
-                            }
-                        )
+                      Idents(SeuratObjsubset) <- input$annotationwatch
                     }
-                    
-                    if(input$format2 =="PNG"){
-                        output$downloadfeatureplotMultGenesPooledFilesInput <- downloadHandler(
-                            filename = "featurePlotFilesInput.png",
-                            content = function(file){
-                                png(file, width = 1500 , height = 1100,res = 150)
-                                print(poolGeneFromList())
-                                dev.off()
-                            }
-                        ) 
+                    if(input$SumorMeans =="Sum" | input$SumorMeans == "Mean"){
+                      if(input$SumorMeans =="Sum"){
+                        gene_list_pooled <- rowSums(FetchData(SeuratObjsubset, vars = gene_list))
+                      }
+                      if(input$SumorMeans =="Mean"){
+                        gene_list_pooled <- rowMeans(FetchData(SeuratObjsubset, vars = gene_list))
+                      }
+                      gene_list_pooled <- cbind.data.frame(coord, counts = gene_list_pooled)
+                      ggplot(gene_list_pooled)+geom_point(aes(UMAP_1,UMAP_2, color = counts),shape=20, size=0.25)+ scale_color_gradient(low="lightgrey",high="blue") + theme_classic()
                     }else{
-                        output$downloadfeatureplotMultGenesPooledFilesInput <- downloadHandler(
-                            filename = "featurePlotFilesInput.svg",
-                            content = function(file){
-                                svg(file, width = 14 , height = 7)
-                                print(poolGeneFromList())
-                                dev.off()
-                            }
-                        ) 
+                      sbt1 <- AddModuleScore(SeuratObjsubset, features =gene_list, name = "Gene_list")
+                      FeaturePlot(sbt1, features = "Gene_list1")
                     }
+                  }
+                  
+                  output$FeaturePlotMultGenesPooledFilesInput <- renderPlot({
+                    poolGeneFromList()
+                  })
+                  poolGenefromListVP <- function(){
+                      validate(
+                          need(input$fileGeneList,"Choose a file that contain a list of genes to display the projection.")
+                      )
+                      gene_list <- Readfile()
+                      if(input$SumorMeans =="Sum" | input$SumorMeans == "Mean"){
+                          if(input$SumorMeans =="Sum"){
+                              if(input$ResOrAnnotMult == "Resolution"){
+                                pool_genesVln <- cbind(SeuratObjsubset[[input$clusterwatch]],rowSums(FetchData(SeuratObjsubset, vars = gene_list)))
+                              }else{
+                                pool_genesVln <- cbind(SeuratObjsubset[[input$annotationwatch]],rowSums(FetchData(SeuratObjsubset, vars = gene_list)))
+                              }
+                              
+                          }
+                          if(input$SumorMeans =="Mean"){
+                              if(input$ResOrAnnotMult == "Resolution"){
+                                pool_genesVln <- cbind(SeuratObjsubset[[input$clusterwatch]],rowMeans(FetchData(SeuratObjsubset, vars = gene_list)))
+                              }else{
+                                pool_genesVln <- cbind(SeuratObjsubset[[input$annotationwatch]],rowMeans(FetchData(SeuratObjsubset, vars = gene_list)))
+                              }
+                              
+                          }
+                          colnames(pool_genesVln) <- c("resolution","GeneList")
+                          ggplot(pool_genesVln, aes(x=resolution,y=GeneList, fill = resolution))+geom_violin()+scale_fill_hue()
+                      }else{
+                          if(input$ResOrAnnotMult == "Resolution"){
+                            Idents(SeuratObjsubset) <- input$clusterwatch 
+                          }else{
+                            Idents(SeuratObjsubset) <- input$annotationwatch
+                          }
+                          sbt1 <- AddModuleScore(SeuratObjsubset, features =list(gene_list), name = "Gene_list")
+                          VlnPlot(sbt1, features = "Gene_list1")
+                      }
+                      
+                  }
+                  output$ViolinPlotMultGenesPooledFilesInput <- renderPlot({
+                      poolGenefromListVP()
+                  })
                     
-                    if(input$format2 == "PNG"){
-                        output$downloadDotPlotMultGenesPooledFilesInput<- downloadHandler(
-                            filename = "DotPlotMultGenesPooled.png",
-                            content = function(file){
-                                png(file, width = 1500 , height = 1100,res = 150)
-                                print(DotplotPooledFromFile())
-                                dev.off()
-                            }
-                        ) 
-                    }else{
-                        output$downloadDotPlotMultGenesPooledFilesInput<- downloadHandler(
-                            filename = "DotPlotMultGenesPooled.svg",
-                            content = function(file){
-                                svg(file, width = 14 , height = 7)
-                                print(DotplotPooledFromFile())
-                                dev.off()
-                            }
-                        )
-                    }
-                    
-                    output$FeaturePlotMultGenesPooledFilesInput <- renderPlot({
-                        poolGeneFromList()
-                    })
-                })
+                  DotplotPooledFromFile <- function(){
+                      validate(
+                          need(input$fileGeneList, "Choose a file that contain a list of genes to display the projection.")
+                      )
+                      gene_list <- Readfile()
+                      if(input$SumorMeans == "Sum"){
+                          if(input$ResOrAnnotMult == "Resolution"){
+                          Idents(SeuratObjsubset) <- input$clusterwatch 
+                          }else{
+                            Idents(SeuratObjsubset) <- input$annotationwatch
+                          }
+                          test <- as.data.frame(cbind(rowSums(FetchData(SeuratObjsubset, vars =gene_list)),SeuratObjsubset[[input$clusterwatch]]))
+                          colnames(test)<- c("V1","V2")
+                          percentExpressed <- test %>% group_by(V2) %>%count(V1 > 0)
+                          colnames(percentExpressed) <- c("cluster", "logical","number")
+                          percentExpressed <- filter(percentExpressed, logical == "TRUE")
+                          totalCellsbyCluster <- test %>% group_by(V2) %>% tally()
+                          percent <- percentExpressed$number/totalCellsbyCluster$n
+                          percent <- as.data.frame(cbind(cluster = levels(SeuratObjsubset),RatioCellsExpressingGeneList = percent))
+                          avgExpression <-test %>% group_by(V2) %>%summarise(avg =sum(V1))
+                          percent <- cbind(percent, SumExp =avgExpression$avg, GeneList = rep("Gene_list",length(percent$cluster)))
+                          percent$RatioCellsExpressingGeneList <- as.numeric(percent$RatioCellsExpressingGeneList)
+                          ggplot(percent , aes(x= GeneList, y  = cluster , size = RatioCellsExpressingGeneList, color = SumExp))+geom_point()+scale_color_gradient(low = "lightgrey", high= "blue")
+                          
+                      }else if (input$SumorMeans == "Mean"){
+                        if(input$ResOrAnnotMult == "Resolution"){
+                          Idents(SeuratObjsubset) <- input$clusterwatch 
+                          }else{
+                            Idents(SeuratObjsubset) <- input$annotationwatch
+                          }
+                          test <- as.data.frame(cbind(rowMeans(FetchData(SeuratObjsubset, vars =gene_list)),SeuratObjsubset[[input$clusterwatch]]))
+                          colnames(test)<- c("V1","V2")
+                          percentExpressed <- test %>% group_by(V2) %>%count(V1 > 0)
+                          colnames(percentExpressed) <- c("cluster", "logical","number")
+                          percentExpressed <- filter(percentExpressed, logical == "TRUE")
+                          totalCellsbyCluster <- test %>% group_by(V2) %>% tally()
+                          percent <- percentExpressed$number/totalCellsbyCluster$n
+                          percent <- as.data.frame(cbind(cluster = levels(SeuratObjsubset),RatioCellsExpressingGeneList = percent))
+                          avgExpression <-test %>% group_by(V2) %>%summarise(avg =mean(V1))
+                          percent <- cbind(percent, AvgExp =avgExpression$avg, GeneList = rep("Gene_list",length(percent$cluster)))
+                          percent$RatioCellsExpressingGeneList <- as.numeric(percent$RatioCellsExpressingGeneList)
+                          ggplot(percent , aes(x= GeneList, y  = cluster , size = RatioCellsExpressingGeneList, color = AvgExp))+geom_point()+scale_color_gradient(low = "lightgrey", high= "blue")
+                      }else{
+                          if(input$ResOrAnnotMult == "Resolution"){
+                            Idents(SeuratObjsubset) <- input$clusterwatch 
+                          }else{
+                            Idents(SeuratObjsubset) <- input$annotationwatch
+                          }
+                          sbt1 <- AddModuleScore(SeuratObjsubset, features =list(gene_list), name = "Gene_list")
+                          DotPlot(sbt1, features = "Gene_list1")
+                      }
+                      
+                  }
+                  output$DotPlotMultGenePooledFromFile <- renderPlot({
+                      DotplotPooledFromFile()
+                  })
+                  if(input$format2 == "PNG"){
+                      output$downloadViolinPlotMultGenesPooledFilesInput <- downloadHandler(
+                          filename = "ViolinPlotMultGenesPooled.png",
+                          content = function(file){
+                              png(file, width = 1500 , height = 1100,res = 150)
+                              print(poolGenefromListVP())
+                              dev.off()
+                          }
+                      )
+                  }else{
+                      output$downloadViolinPlotMultGenesPooledFilesInput <- downloadHandler(
+                          filename = "ViolinPlotMultGenesPooled.svg",
+                          content = function(file){
+                              svg(file, width = 14 , height = 7)
+                              print(poolGenefromListVP())
+                              dev.off()
+                          }
+                      )
+                  }
+                  
+                  if(input$format2 =="PNG"){
+                      output$downloadfeatureplotMultGenesPooledFilesInput <- downloadHandler(
+                          filename = "featurePlotFilesInput.png",
+                          content = function(file){
+                              png(file, width = 1500 , height = 1100,res = 150)
+                              print(poolGeneFromList())
+                              dev.off()
+                          }
+                      ) 
+                  }else{
+                      output$downloadfeatureplotMultGenesPooledFilesInput <- downloadHandler(
+                          filename = "featurePlotFilesInput.svg",
+                          content = function(file){
+                              svg(file, width = 14 , height = 7)
+                              print(poolGeneFromList())
+                              dev.off()
+                          }
+                      ) 
+                  }
+                  
+                  if(input$format2 == "PNG"){
+                      output$downloadDotPlotMultGenesPooledFilesInput<- downloadHandler(
+                          filename = "DotPlotMultGenesPooled.png",
+                          content = function(file){
+                              png(file, width = 1500 , height = 1100,res = 150)
+                              print(DotplotPooledFromFile())
+                              dev.off()
+                          }
+                      ) 
+                  }else{
+                      output$downloadDotPlotMultGenesPooledFilesInput<- downloadHandler(
+                          filename = "DotPlotMultGenesPooled.svg",
+                          content = function(file){
+                              svg(file, width = 14 , height = 7)
+                              print(DotplotPooledFromFile())
+                              dev.off()
+                          }
+                      )
+                  }
+              })
+                
                 
                 ###########################################
                 ########  Information extraction #########
@@ -1127,8 +1314,10 @@ server <- function(input, output,session) {
                             choices <- names(SeuratObjsubset@meta.data)
                             choicesForAnnot <- choices[-which(choices %in% toremove)]
                             updateSelectizeInput(session,"chooseVar2Plot", choices=choices)
-                            updateSelectizeInput(session,"whichAnnot", choices=choices)
+                            updateSelectizeInput(session,"whichAnnot", choices=choicesForAnnot)
                             updateSelectizeInput(session,"Annot2Complete",choices = choicesForAnnot)
+                            updateSelectizeInput(session,"AnnotationDataMining",choices = choicesForAnnot)
+                            updateSelectizeInput(session,"annotationwatch",choices = choicesForAnnot)
                             
                         }
                         
@@ -1161,8 +1350,8 @@ server <- function(input, output,session) {
                 ######################################
                 ########### Subclustering ############
                 ######################################
-                removeInfo <- c(grep(names(SeuratObjsubset@meta.data),pattern ="*_snn_res.*", value =T),grep(names(SeuratObjsubset@meta.data),pattern ="nCount_*", value =T),grep(names(SeuratObjsubset@meta.data),pattern ="nFeature_*", value =T),"percent.mt","S.Score", "G2M.Score")
-                annotation_sub <- names(SeuratObjsubset@meta.data)
+                removeInfo <- c(grep(names(SeuratObjsubset@meta.data),pattern ="*_snn_res.*", value =T),grep(names(SeuratObjsubset@meta.data),pattern ="nCount_*", value =T),grep(names(SeuratObjsubset@meta.data),pattern ="nFeature_*", value =T),"percent.mt","S.Score", "G2M.Score","seurat_clusters")
+                annotation_sub <- colnames(SeuratObjsubset@meta.data)
                 annotation_sub <- annotation_sub[-which(annotation_sub %in% removeInfo)]
                 updateSelectizeInput(session,"clusterResPage7",choices = available_resolution,server =TRUE)
                 updateSelectizeInput(session,"whichAnnot", choices = annotation_sub, server = TRUE)
@@ -1211,8 +1400,7 @@ server <- function(input, output,session) {
                             subsetSeuratObj <<- subset(SeuratObjsubset, cells = test)
                             
                         })
-                    }
-                    else{
+                    }else{
                         Idents(SeuratObjsubset) <- input$whichAnnot
                         annotSbt <- levels(SeuratObjsubset)
                         updateSelectInput(session, "subannot", choices = annotSbt)
@@ -1455,14 +1643,22 @@ server <- function(input, output,session) {
             ###### Data mining of one gene ######
             #####################################
             updateSelectizeInput(session, "ResolutionDataMining", choices=available_resolution, server=TRUE)
+            toremove <- c(grep(names(seuratObj@meta.data),pattern ="*_snn_res.*", value =T),grep(names(seuratObj@meta.data),pattern ="nCount_*", value =T),grep(names(seuratObj@meta.data),pattern ="nFeature_*", value =T),"percent.mt","S.Score", "G2M.Score")
+            varAvail <- names(seuratObj@meta.data)
+            varAvail <- varAvail[-which(varAvail %in% toremove)]
+            updateSelectizeInput(session, "AnnotationDataMining", choices = varAvail, server = TRUE)
             gene <- seuratObj@assays$RNA@counts@Dimnames[[1]]
             updateSelectizeInput(session,"GeneList", choices=gene, server = TRUE)
-            toListen <- reactive({list(input$ResolutionDataMining, input$keepscale, input$format)})
+            toListen <- reactive({list(input$ResolutionDataMining, input$AnnotationDataMining, input$keepscale, input$format, input$ResOrAnnot)})
             observeEvent(toListen(),{
                 if(input$format =="SVG"){
                     shinyalert("warning", "SVG format is a good choice of graph for your paper because it can be easily formated but is heavier than PNG", "warning")
                 }
-                Idents(seuratObj) <- input$ResolutionDataMining
+                if(input$ResOrAnnot == "Resolution"){
+                  Idents(seuratObj) <- input$ResolutionDataMining 
+                }else{
+                  Idents(seuratObj) <- input$AnnotationDataMining
+                }
                 FP <- function(){
                     validate(
                         need(input$GeneList != "","Select at least one gene")
@@ -1581,407 +1777,566 @@ server <- function(input, output,session) {
                             dev.off()
                         }
                     ) 
-                }
-                
+                } 
                 output$clusterOutput<- renderPlot({
                     DimPlot(seuratObj, label = TRUE, label.size = 6)
                 })
-            })
-            dataTableCat <- reactive(aggregate(FetchData(seuratObj, vars=input$GeneList),data.frame(seuratObj[[input$ResolutionDataMining]]),mean))
-            output$geneExp <- DT::renderDataTable({
-                validate(
-                    need(input$GeneList != "","You have to choose at least one gene and here you will have for the mean of the expression for each cluster.")
-                )
-                DT::datatable(dataTableCat(), options = list(scrollX=TRUE), rownames = FALSE)
-            })
-            output$downloadRawCount<- downloadHandler(
-                filename = function(){
-                    paste('data_',Sys.Date(),'.csv',sep = '')
-                },
-                content=function(file){
-                    write.csv(dataTableCat(),file)
+                if(input$ResOrAnnot == "Resolution"){
+                  dataTableCat <- reactive(aggregate(FetchData(seuratObj, vars=input$GeneList),data.frame(seuratObj[[input$ResolutionDataMining]]),mean))
+                }else{
+                  dataTableCat <- reactive(aggregate(FetchData(seuratObj, vars=input$GeneList),data.frame(seuratObj[[input$AnnotationDataMining]]),mean))
                 }
-            )
-            
+                output$geneExp <- DT::renderDataTable({
+                  validate(
+                    need(input$GeneList != "","You have to choose at least one gene and here you will have for the mean of the expression for each cluster.")
+                  )
+                  DT::datatable(dataTableCat(), options = list(scrollX=TRUE), rownames = FALSE)
+                })
+                output$downloadRawCount<- downloadHandler(
+                  filename = function(){
+                    paste('data_',Sys.Date(),'.csv',sep = '')
+                  },
+                  content=function(file){
+                    write.csv(dataTableCat(),file)
+                  }
+                )
+                dataMatrixEntire <- reactive(FetchData(seuratObj, vars=input$GeneList))
+                output$downloadMatrix <- downloadHandler(
+                  filename = function(){
+                    paste('Matrix_',Sys.Date(),'.csv', sep ='')
+                  },
+                  content = function(file){
+                    write.csv(dataMatrixEntire(), file)
+                  }
+                )
+            })
         
             ######################################################
             ############# Multiple genes data mining #############
             ######################################################
             updateSelectizeInput(session,"clusterwatch",choices =available_resolution,server =TRUE)
+            toremove <- c(grep(names(seuratObj@meta.data),pattern ="*_snn_res.*", value =T),grep(names(seuratObj@meta.data),pattern ="nCount_*", value =T),grep(names(seuratObj@meta.data),pattern ="nFeature_*", value =T),"percent.mt","S.Score", "G2M.Score")
+            varAvail <- names(seuratObj@meta.data)
+            varAvail <- varAvail[-which(varAvail %in% toremove)]
+            updateSelectizeInput(session, "annotationwatch", choices = varAvail, server = TRUE)
             updateSelectizeInput(session,"GeneListPool", choices=gene, server = TRUE)
-            listen_page_mining_mult_genes <- reactive({list(input$clusterwatch,input$SumorMeans,input$GeneListPool, input$format2)})
+            listen_page_mining_mult_genes <- reactive({list(input$ResOrAnnotMult,input$clusterwatch,input$annotationwatch,input$SumorMeans, input$GeneListPool,input$format2)})
             #reactive graph from sum or mean button
+            
             observeEvent(listen_page_mining_mult_genes(),{
-                if(input$format2 =="SVG"){
-                    shinyalert("warning", "SVG format is a good choice of graph for your paper because it can be easily formated but is heavier than PNG", "warning")
-                }
+              if(input$format2 =="SVG"){
+                  shinyalert("warning", "SVG format is a good choice of graph for your paper because it can be easily formated but is heavier than PNG", "warning")
+              }
+              if(input$ResOrAnnotMult == "Resolution"){
                 Idents(seuratObj) <- input$clusterwatch
-                coord <- Embeddings(seuratObj[["umap"]])[,1:2]
-                output$dimplotSeurat4page <- renderPlot({
-                    DimPlot(seuratObj, label = TRUE, label.size = 6)
-                })
-                poolexpTable <- reactive(aggregate(FetchData(seuratObj, vars=c(input$GeneListPool)),data.frame(seuratObj[[input$clusterwatch]]),mean))
-                output$sumGeneexp <- DT::renderDataTable({
-                    validate(
-                        need(input$GeneListPool !="", "Can't display anything while you don't have choose one gene at least")
-                    )
-                    DT::datatable(poolexpTable(), options = list(scrollX = TRUE), rownames = F)                
-                })
-                output$downloadSumGeneExp<- downloadHandler(
-                    filename = function(){
-                        paste('data_',Sys.Date(),'.csv',sep = '')
-                    },
-                    content=function(file){
-                        write.csv(poolexpTable(),file)
-                    }
+              }else{
+                Idents(seuratObj) <- input$annotationwatch
+              }
+              coord <- Embeddings(seuratObj[["umap"]])[,1:2]
+              output$dimplotSeurat4page <- renderPlot({
+                  DimPlot(seuratObj, label = TRUE, label.size = 6)
+              })
+              
+              poolexpTable <- reactive({
+                if(input$ResOrAnnotMult == "Resolution"){
+                  out <- aggregate(FetchData(seuratObj, vars=c(input$GeneListPool)),data.frame(seuratObj[[input$clusterwatch]]),mean)
+                }else{
+                  out <- aggregate(FetchData(seuratObj, vars=c(input$GeneListPool)),data.frame(seuratObj[[input$annotationwatch]]),mean)
+                }
+                out
+              })
+              
+              output$sumGeneexp <- DT::renderDataTable({
+                validate(
+                  need(input$GeneListPool !="", " ")
                 )
-                observeEvent(input$fileGeneList,{
-                    list_gene_file <- read.csv(input$fileGeneList$datapath, header=TRUE)
-                    colnames(list_gene_file) <- "cluster"
-                    exprPoolFromFile <- reactive(aggregate(FetchData(seuratObj, vars=c(list_gene_file$cluster)), data.frame(seuratObj[[input$clusterwatch]]), mean))
-                    output$meanGeneExpPooledfromFile <- DT::renderDataTable({
-                        DT::datatable(exprPoolFromFile(), options = list(scrollX =TRUE), rownames=F)
-                    })
-                    output$downloadmeanGeneExpPooledfromFile<- downloadHandler(
-                        filename = function(){
-                            paste('data_',Sys.Date(),'.csv',sep = '')
-                        },
-                        content=function(file){
-                            write.csv(exprPoolFromFile(),file)
-                        })
-                })
-                poolGene <- function(){
-                    validate(
-                        need(input$GeneListPool != "","Choose at least one gene to display projection. This plot can pool some gene and get the sum of the normalized counts. \nAddModuleScore function will calculate the average expression levels of each program (cluster) on single cell level, subtracted by the aggregated expression of control feature sets. All analyzed features are binned based on averaged expression, and the control features are randomly selected from each bin.")
-                    )
-                    if(input$SumorMeans =="Sum" | input$SumorMeans == "Mean"){
-                        if (input$SumorMeans == "Sum"){
-                            pool_genes <- rowSums(FetchData(seuratObj, vars =c(input$GeneListPool)))  
-                        }else if (input$SumorMeans == "Mean"){
-                            pool_genes <- rowMeans(FetchData(seuratObj, vars =c(input$GeneListPool)))
-                        }
-                        pool_genes <- cbind.data.frame(coord,counts = pool_genes)
-                        ggplot(pool_genes)+geom_point(aes(UMAP_1,UMAP_2, color = counts),shape=20, size=0.25)+ scale_color_gradient(low="lightgrey",high="blue") + theme_classic() 
+                DT::datatable(poolexpTable(), options = list(scrollX = TRUE), rownames = F)
+              })
+              
+              output$downloadSumGeneExp<- downloadHandler(
+                  filename = function(){
+                      paste('data_',Sys.Date(),'.csv',sep = '')
+                  },
+                  content=function(file){
+                    write.csv(poolexpTable(),file)
+                  }
+              )
+              
+              createEntireMatrix <- reactive({
+                if(input$SumorMeans =="Sum" | input$SumorMeans == "Mean"){
+                  if (input$SumorMeans == "Sum"){
+                    if(input$ResOrAnnotMult == "Resolution"){
+                      expressionMatrixEntire <- cbind(geneList = rowSums(FetchData(seuratObj, vars =c(input$GeneListPool))),seuratObj[[input$clusterwatch]])
                     }else{
-                        sbt <- AddModuleScore(seuratObj, features =list(input$GeneListPool), name = "Gene_list")
-                        FeaturePlot(sbt, features = "Gene_list1")
+                      expressionMatrixEntire <- cbind(geneList = rowSums(FetchData(seuratObj, vars =c(input$GeneListPool))),seuratObj[[input$annotationwatch]])
                     }
-                    
+                  }else{
+                    if(input$ResOrAnnotMult == "Resolution"){
+                      expressionMatrixEntire <- cbind(geneList = rowMeans(FetchData(seuratObj, vars =c(input$GeneListPool))),seuratObj[[input$clusterwatch]])
+                    }else{
+                      expressionMatrixEntire <- cbind(geneList = rowMeans(FetchData(seuratObj, vars =c(input$GeneListPool))),seuratObj[[input$clusterwatch]])
+                    }
+                  }
+                }else{
+                  sbt <- AddModuleScore(seuratObj, features =list(input$GeneListPool), name = "Gene_list")
+                  if(input$ResOrAnnotMult == "Resolution"){
+                    expressionMatrixEntire <- cbind(sbt[["Gene_list1"]],sbt[[input$clusterwatch]])
+                  }else{
+                    expressionMatrixEntire <- cbind(sbt[["Gene_list1"]],sbt[[input$annotationwatch]])
+                  }
                 }
-                output$FeaturePlotMultGenesPooled <- renderPlot({
-                    poolGene()
-                })
-                VlnPlotPooled <- function(){
-                    validate(
-                        need(input$GeneListPool != "", "Choose at least one gene to display violin plot")
-                    )
-                    if(input$SumorMeans =="Sum" | input$SumorMeans == "Mean"){
-                        if(input$SumorMeans == "Sum"){
-                            pool_genesVln <- cbind(seuratObj[[input$clusterwatch]],rowSums(FetchData(seuratObj, vars = c(input$GeneListPool))))
+                expressionMatrixEntire
+              })
+              
+              output$downloadMatrixMultList <- downloadHandler(
+                filename = function(){
+                  paste('Entire_matrix_',Sys.Date(),'.csv',sep = '')
+                },
+                content=function(file){
+                  write.csv(createEntireMatrix(),file)
+                }
+              )
+              poolGene <- function(){
+                  validate(
+                      need(input$GeneListPool != "","Choose at least one gene to display projection. This plot can pool some gene and get the sum of the normalized counts. \nAddModuleScore function will calculate the average expression levels of each program (cluster) on single cell level, subtracted by the aggregated expression of control feature sets. All analyzed features are binned based on averaged expression, and the control features are randomly selected from each bin.")
+                  )
+                  if(input$SumorMeans =="Sum" | input$SumorMeans == "Mean"){
+                      if (input$SumorMeans == "Sum"){
+                          pool_genes <- rowSums(FetchData(seuratObj, vars =c(input$GeneListPool)))  
+                      }else if (input$SumorMeans == "Mean"){
+                          pool_genes <- rowMeans(FetchData(seuratObj, vars =c(input$GeneListPool)))
+                      }
+                      pool_genes <- cbind.data.frame(coord,counts = pool_genes)
+                      ggplot(pool_genes)+geom_point(aes(UMAP_1,UMAP_2, color = counts),shape=20, size=0.25)+ scale_color_gradient(low="lightgrey",high="blue") + theme_classic() 
+                  }else{
+                      sbt <- AddModuleScore(seuratObj, features =list(input$GeneListPool), name = "Gene_list")
+                      FeaturePlot(sbt, features = "Gene_list1")
+                  }
+                  
+              }
+              output$FeaturePlotMultGenesPooled <- renderPlot({
+                  poolGene()
+              })
+              
+              VlnPlotPooled <- function(){
+                  validate(
+                      need(input$GeneListPool != "", "Choose at least one gene to display violin plot")
+                  )
+                  if(input$SumorMeans =="Sum" | input$SumorMeans == "Mean"){
+                      if(input$SumorMeans == "Sum"){
+                        if(input$ResOrAnnotMult == "Resolution"){
+                          pool_genesVln <- cbind(seuratObj[[input$clusterwatch]],rowSums(FetchData(seuratObj, vars = input$GeneListPool)))
                         }else{
-                            pool_genesVln <- cbind(seuratObj[[input$clusterwatch]],rowMeans(FetchData(seuratObj, vars = c(input$GeneListPool))))
+                          pool_genesVln <- cbind(seuratObj[[input$annotationwatch]],rowSums(FetchData(seuratObj, vars = input$GeneListPool)))
                         }
-                        colnames(pool_genesVln) <- c("resolution","GeneList")
-                        ggplot(pool_genesVln, aes(x=resolution,y=GeneList, fill = resolution))+geom_violin()+scale_fill_hue()
-                    }else{
-                        sbt <- AddModuleScore(seuratObj, features =list(input$GeneListPool), name = "Gene_list")
-                        VlnPlot(sbt, features = "Gene_list1")
-                    }
-                }
-                output$ViolinPlotMultGenesPooled <- renderPlot({
-                    VlnPlotPooled()
-                })
-                DotplotPooled <- function(){
-                    validate(
-                        need(input$GeneListPool != "", "Choose at least one gene to display dot plot")
-                    )
-                    if(input$SumorMeans == "Sum"){
-                        Idents(seuratObj) <-  input$clusterwatch
-                        test <- as.data.frame(cbind(rowSums(FetchData(seuratObj, vars =c(input$GeneListPool))),seuratObj[[input$clusterwatch]]))
-                        colnames(test)<- c("V1","V2")
-                        percentExpressed <- test %>% group_by(V2) %>%count(V1 > 0)
-                        colnames(percentExpressed) <- c("cluster", "logical","number")
-                        percentExpressed <- filter(percentExpressed, logical == "TRUE")
-                        totalCellsbyCluster <- test %>% group_by(V2) %>% tally()
-                        percent <- percentExpressed$number/totalCellsbyCluster$n
-                        percent <- as.data.frame(cbind(cluster = levels(seuratObj),RatioCellsExpressingGeneList = percent))
-                        avgExpression <-test %>% group_by(V2) %>%summarise(avg =sum(V1))
-                        percent <- cbind(percent, SumExp =avgExpression$avg, GeneList = rep("Gene_list",length(percent$cluster)))
-                        percent$RatioCellsExpressingGeneList <- as.numeric(percent$RatioCellsExpressingGeneList)
-                        ggplot(percent , aes(x= GeneList, y  = cluster , size = RatioCellsExpressingGeneList, color = SumExp))+geom_point()+scale_color_gradient(low = "lightgrey", high= "blue")
-                        
-                    }else if(input$SumorMeans=="Mean"){
-                        Idents(seuratObj) <-  input$clusterwatch
-                        test <- as.data.frame(cbind(rowMeans(FetchData(seuratObj, vars =c(input$GeneListPool))),seuratObj[[input$clusterwatch]]))
-                        colnames(test)<- c("V1","V2")
-                        percentExpressed <- test %>% group_by(V2) %>%count(V1 > 0)
-                        colnames(percentExpressed) <- c("cluster", "logical","number")
-                        percentExpressed <- filter(percentExpressed, logical == "TRUE")
-                        totalCellsbyCluster <- test %>% group_by(V2) %>% tally()
-                        percent <- percentExpressed$number/totalCellsbyCluster$n
-                        percent <- as.data.frame(cbind(cluster = levels(seuratObj),RatioCellsExpressingGeneList = percent))
-                        avgExpression <-test %>% group_by(V2) %>%summarise(avg =mean(V1))
-                        percent <- cbind(percent, AvgExp =avgExpression$avg, GeneList = rep("Gene_list",length(percent$cluster)))
-                        percent$RatioCellsExpressingGeneList <- as.numeric(percent$RatioCellsExpressingGeneList)
-                        ggplot(percent , aes(x= GeneList, y  = cluster , size = RatioCellsExpressingGeneList, color = AvgExp))+geom_point()+scale_color_gradient(low = "lightgrey", high= "blue")
-                    }else{
-                        sbt <- AddModuleScore(seuratObj, features =list(input$GeneListPool), name = "Gene_list")
-                        DotPlot(sbt, features = "Gene_list1")
-                    }
-                    
-                }
-                output$DotPlotMultGenePooled <- renderPlot({
-                    DotplotPooled()
-                })
-                ### Download plot ###
-                if(input$format2 =="PNG"){
-                    output$VPdownloadMultGenesPooled <- downloadHandler(
-                        filename = "ViolinPlotMultGenesPooled.png",
-                        content = function(file){
-                            png(file, width = 1500 , height = 1100,res = 150)
-                            print(VlnPlotPooled())
-                            dev.off()
+                      }else{
+                        if(input$ResOrAnnotMult == "Resolution"){
+                          pool_genesVln <- cbind(seuratObj[[input$clusterwatch]],rowMeans(FetchData(seuratObj, vars = input$GeneListPool)))
+                        }else{
+                          pool_genesVln <- cbind(seuratObj[[input$annotationwatch]],rowMeans(FetchData(seuratObj, vars = input$GeneListPool)))
                         }
-                    )
-                }else{
-                    output$VPdownloadMultGenesPooled <- downloadHandler(
-                        filename = "ViolinPlotMultGenesPooled.svg",
-                        content = function(file){
-                            svg(file, width = 14 , height = 7)
-                            print(VlnPlotPooled())
-                            dev.off()
-                        }
-                    )
-                }
-                
-                
-                if(input$format2 =="PNG"){
-                    output$downloadfeatureplotMultGenesPooled<- downloadHandler(
-                        filename = "featurePlotMultGenesPooled.png",
-                        content = function(file){
-                            png(file, width = 1500 , height = 1100,res = 150)
-                            print(poolGene())
-                            dev.off()
-                        }
-                    )  
-                }else{
-                    output$downloadfeatureplotMultGenesPooled<- downloadHandler(
-                        filename = "featurePlotMultGenesPooled.svg",
-                        content = function(file){
-                            svg(file, width = 14 , height = 7)
-                            print(poolGene())
-                            dev.off()
-                        }
-                    )
-                }
-                
-                if(input$format2=="PNG"){
-                    output$dotplotdownloadMultGenesPooled<- downloadHandler(
-                        filename = "DotPlotMultGenesPooled.png",
-                        content = function(file){
-                            png(file, width = 1500 , height = 1100,res = 150)
-                            print(poolGene())
-                            dev.off()
-                        }
-                    )
-                }else{
-                    output$dotplotdownloadMultGenesPooled<- downloadHandler(
-                        filename = "DotPlotMultGenesPooled.svg",
-                        content = function(file){
-                            svg(file, width = 14 , height = 7)
-                            print(poolGene())
-                            dev.off()
-                        }
-                    )
-                }
-                
-                
+                      }
+                      colnames(pool_genesVln) <- c("resolution","GeneList")
+                      ggplot(pool_genesVln, aes(x=resolution,y=GeneList, fill = resolution))+geom_violin()+scale_fill_hue()
+                  }else{
+                      sbt <- AddModuleScore(seuratObj, features =list(input$GeneListPool), name = "Gene_list")
+                      VlnPlot(sbt, features = "Gene_list1")
+                  }
+              }
+              output$ViolinPlotMultGenesPooled <- renderPlot({
+                  VlnPlotPooled()
+              })
+              
+              
+              DotplotPooled <- function(){
+                  validate(
+                      need(input$GeneListPool != "", "Choose at least one gene to display dot plot")
+                  )
+                  if(input$SumorMeans == "Sum"){
+                      if(input$ResOrAnnotMult == "Resolution"){
+                        Idents(seuratObj) <- input$clusterwatch
+                      }else{
+                        Idents(seuratObj) <- input$annotationwatch
+                      }
+                      test <- as.data.frame(cbind(rowSums(FetchData(seuratObj, vars =c(input$GeneListPool))),seuratObj[[input$clusterwatch]]))
+                      colnames(test)<- c("V1","V2")
+                      percentExpressed <- test %>% group_by(V2) %>%count(V1 > 0)
+                      colnames(percentExpressed) <- c("cluster", "logical","number")
+                      percentExpressed <- filter(percentExpressed, logical == "TRUE")
+                      totalCellsbyCluster <- test %>% group_by(V2) %>% tally()
+                      percent <- percentExpressed$number/totalCellsbyCluster$n
+                      percent <- as.data.frame(cbind(cluster = levels(seuratObj),RatioCellsExpressingGeneList = percent))
+                      avgExpression <-test %>% group_by(V2) %>%summarise(avg =sum(V1))
+                      percent <- cbind(percent, SumExp =avgExpression$avg, GeneList = rep("Gene_list",length(percent$cluster)))
+                      percent$RatioCellsExpressingGeneList <- as.numeric(percent$RatioCellsExpressingGeneList)
+                      ggplot(percent , aes(x= GeneList, y  = cluster , size = RatioCellsExpressingGeneList, color = SumExp))+geom_point()+scale_color_gradient(low = "lightgrey", high= "blue")
+                      
+                  }else if(input$SumorMeans=="Mean"){
+                      if(input$ResOrAnnotMult == "Resolution"){
+                        Idents(seuratObj) <- input$clusterwatch
+                      }else{
+                        Idents(seuratObj) <- input$annotationwatch
+                      }
+                      test <- as.data.frame(cbind(rowMeans(FetchData(seuratObj, vars =c(input$GeneListPool))),seuratObj[[input$clusterwatch]]))
+                      colnames(test)<- c("V1","V2")
+                      percentExpressed <- test %>% group_by(V2) %>%count(V1 > 0)
+                      colnames(percentExpressed) <- c("cluster", "logical","number")
+                      percentExpressed <- filter(percentExpressed, logical == "TRUE")
+                      totalCellsbyCluster <- test %>% group_by(V2) %>% tally()
+                      percent <- percentExpressed$number/totalCellsbyCluster$n
+                      percent <- as.data.frame(cbind(cluster = levels(seuratObj),RatioCellsExpressingGeneList = percent))
+                      avgExpression <-test %>% group_by(V2) %>%summarise(avg =mean(V1))
+                      percent <- cbind(percent, AvgExp =avgExpression$avg, GeneList = rep("Gene_list",length(percent$cluster)))
+                      percent$RatioCellsExpressingGeneList <- as.numeric(percent$RatioCellsExpressingGeneList)
+                      ggplot(percent , aes(x= GeneList, y  = cluster , size = RatioCellsExpressingGeneList, color = AvgExp))+geom_point()+scale_color_gradient(low = "lightgrey", high= "blue")
+                  }else{
+                      sbt <- AddModuleScore(seuratObj, features =list(input$GeneListPool), name = "Gene_list")
+                      DotPlot(sbt, features = "Gene_list1")
+                  }
+                  
+              }
+              output$DotPlotMultGenePooled <- renderPlot({
+                  DotplotPooled()
+              })
+              ### Download plot ###
+              if(input$format2 =="PNG"){
+                  output$VPdownloadMultGenesPooled <- downloadHandler(
+                      filename = "ViolinPlotMultGenesPooled.png",
+                      content = function(file){
+                          png(file, width = 1500 , height = 1100,res = 150)
+                          print(VlnPlotPooled())
+                          dev.off()
+                      }
+                  )
+              }else{
+                  output$VPdownloadMultGenesPooled <- downloadHandler(
+                      filename = "ViolinPlotMultGenesPooled.svg",
+                      content = function(file){
+                          svg(file, width = 14 , height = 7)
+                          print(VlnPlotPooled())
+                          dev.off()
+                      }
+                  )
+              }
+              
+              
+              if(input$format2 =="PNG"){
+                  output$downloadfeatureplotMultGenesPooled<- downloadHandler(
+                      filename = "featurePlotMultGenesPooled.png",
+                      content = function(file){
+                          png(file, width = 1500 , height = 1100,res = 150)
+                          print(poolGene())
+                          dev.off()
+                      }
+                  )  
+              }else{
+                  output$downloadfeatureplotMultGenesPooled<- downloadHandler(
+                      filename = "featurePlotMultGenesPooled.svg",
+                      content = function(file){
+                          svg(file, width = 14 , height = 7)
+                          print(poolGene())
+                          dev.off()
+                      }
+                  )
+              }
+              
+              if(input$format2=="PNG"){
+                  output$dotplotdownloadMultGenesPooled<- downloadHandler(
+                      filename = "DotPlotMultGenesPooled.png",
+                      content = function(file){
+                          png(file, width = 1500 , height = 1100,res = 150)
+                          print(poolGene())
+                          dev.off()
+                      }
+                  )
+              }else{
+                  output$dotplotdownloadMultGenesPooled<- downloadHandler(
+                      filename = "DotPlotMultGenesPooled.svg",
+                      content = function(file){
+                          svg(file, width = 14 , height = 7)
+                          print(poolGene())
+                          dev.off()
+                      }
+                  )
+              }    
             })
             
+            ######################################### Gene list from file ################################
             
-            listenFormatAndtype <- reactive({list(input$SumorMeans, input$format2)})
-            observeEvent(listenFormatAndtype(),{
+            # Observe event useful in order to check if all genes from gene list passed in parameters are contained in the seurat object
+            observeEvent(input$fileGeneList,{
+              CheckGenes <- reactive({
+                validate(
+                  need(input$fileGeneList,"Choose a file that contain a list of genes to display the projection.")
+                )
+                list_gene_file <- read.csv(input$fileGeneList$datapath, header=TRUE)
+                colnames(list_gene_file) <- "cluster"
+                list_gene_file <- list_gene_file$cluster
+                before <- length(list_gene_file)
+                list_gene_file <- list_gene_file[list_gene_file %in% rownames(seuratObj)]
+                if(length(list_gene_file) != before){
+                  shinyalert("Some genes cannot be found in this object, they have been removed", type = "warning")
+                }
+              })
+              CheckGenes()
+            })
+            
+            listen_page_mining_mult_genes_from_file <- reactive({list(input$ResOrAnnotMult,input$clusterwatch,input$annotationwatch,input$SumorMeans,input$fileGeneList, input$format2)})
+            observeEvent(listen_page_mining_mult_genes_from_file(),{
+              Readfile <- function(){
+                validate(
+                  need(input$fileGeneList, " ")
+                )
+                list_gene_file <- read.csv(input$fileGeneList$datapath, header=TRUE)
+                colnames(list_gene_file) <- "cluster"
+                list_gene_file <- list_gene_file$cluster
+                list_gene_file <- list_gene_file[list_gene_file %in% rownames(seuratObj)]
+                list_gene_file
+              }
+              
+              
+              exprPoolFromFile <- reactive({
+                list_gene_file <- Readfile()
+                if(input$ResOrAnnotMult == "Resolution"){
+                  outFile <- aggregate(FetchData(seuratObj, vars=c(list_gene_file)), data.frame(seuratObj[[input$clusterwatch]]), mean)
+                }else{
+                  outFile <- aggregate(FetchData(seuratObj, vars=c(list_gene_file)), data.frame(seuratObj[[input$annotationwatch]]), mean)
+                }
+                outFile
+              })
+              
+              output$meanGeneExpPooledfromFile <- DT::renderDataTable({
+                DT::datatable(exprPoolFromFile(), options = list(scrollX =TRUE), rownames=F)
+              })
+              
+              output$downloadmeanGeneExpPooledfromFile<- downloadHandler(
+                filename = function(){
+                  paste('data_',Sys.Date(),'.csv',sep = '')
+                },
+                content=function(file){
+                  write.csv(exprPoolFromFile(),file)
+              })
+              
+              
+              finaleExpressionMatrixFromFile <- reactive({
+                list_gene_file <- Readfile()
+                sbt1 <- AddModuleScore(seuratObj, features =list(list_gene_file), name = "Gene_list")
+                if(input$SumorMeans =="Sum" | input$SumorMeans == "Mean"){
+                  if (input$SumorMeans == "Sum"){
+                    if(input$ResOrAnnotMult == "Resolution"){
+                      expressionMatrixEntireFile <- cbind(geneList = rowSums(FetchData(seuratObj, vars =c(list_gene_file))),seuratObj[[input$clusterwatch]])
+                    }else{
+                      expressionMatrixEntireFile <- cbind(geneList = rowSums(FetchData(seuratObj, vars =c(list_gene_file))),seuratObj[[input$annotationwatch]])
+                    }
+                  }else{
+                    if(input$ResOrAnnotMult == "Resolution"){
+                      expressionMatrixEntireFile <- cbind(geneList =rowMeans(FetchData(seuratObj, vars =c(list_gene_file))),seuratObj[[input$clusterwatch]])
+                    }else{
+                      expressionMatrixEntireFile <- cbind(geneList =rowMeans(FetchData(seuratObj, vars =c(list_gene_file))),seuratObj[[input$annotationwatch]])
+                    }
+                  }
+                }else{
+                  if(input$ResOrAnnotMult == "Resolution"){
+                    expressionMatrixEntireFile <- cbind(sbt1[["Gene_list1"]],sbt1[[input$clusterwatch]])
+                  }else{
+                    expressionMatrixEntireFile <- cbind(sbt1[["Gene_list1"]],sbt1[[input$annotationwatch]])
+                  }
+                }
+                expressionMatrixEntireFile
+              })
+              
+              output$downloadMatrixMultFile <- downloadHandler(
+                filename = function(){
+                  paste('Entire_matrix_',Sys.Date(),'.csv',sep = '')
+                },
+                content=function(file){
+                  write.csv(finaleExpressionMatrixFromFile(),file)
+                }
+              )
+              
+              
+              poolGeneFromList <- function(){
+                validate(
+                  need(input$fileGeneList,"Choose a file that contain a list of genes to display the projection.This plot will show the pool of each gene expression for each gene id contained in the file. \nExample of a file :\nHeader\nMlxipl\nSox9\nEtc...  ")
+                )
                 coord <- Embeddings(seuratObj[["umap"]])[,1:2]
-                poolGeneFromList <- function(){
-                    validate(
-                        need(input$fileGeneList,"Choose a file that contain a list of genes to display the projection.This plot will show the pool of each gene expression for each gene id contained in the file. \nExample of a file :\nMlxipl\nSox9\nEtc...  ")
-                    )
-                    gene_list <- read.csv(input$fileGeneList$datapath, header=TRUE)
-                    colnames(gene_list) <- "cluster"
-                    if(input$SumorMeans =="Sum" | input$SumorMeans == "Mean"){
-                        if(input$SumorMeans =="Sum"){
-                            gene_list_pooled <- rowSums(FetchData(seuratObj, vars = gene_list$cluster))
-                        }
-                        if(input$SumorMeans =="Mean"){
-                            gene_list_pooled <- rowMeans(FetchData(seuratObj, vars = gene_list$cluster))
-                        }
-                        gene_list_pooled <- cbind.data.frame(coord, counts = gene_list_pooled)
-                        ggplot(gene_list_pooled)+geom_point(aes(UMAP_1,UMAP_2, color = counts),shape=20, size=0.25)+ scale_color_gradient(low="lightgrey",high="blue") + theme_classic()
-                    }else{
-                        sbt1 <- AddModuleScore(seuratObj, features =list(gene_list$cluster), name = "Gene_list")
-                        FeaturePlot(sbt1, features = "Gene_list1")
-                    }
-                }
-                poolGenefromListVP <- function(){
-                    validate(
-                        need(input$fileGeneList,"Choose a file that contain a list of genes to display the projection.")
-                    )
-                    gene_list <- read.csv(input$fileGeneList$datapath, header=TRUE)
-                    colnames(gene_list) <- "cluster"
-                    if(input$SumorMeans =="Sum" | input$SumorMeans == "Mean"){
-                        if(input$SumorMeans =="Sum"){
-                            pool_genesVln <- cbind(seuratObj[[input$clusterwatch]],rowSums(FetchData(seuratObj, vars = gene_list$cluster)))
-                        }
-                        if(input$SumorMeans =="Mean"){
-                            pool_genesVln <- cbind(seuratObj[[input$clusterwatch]],rowMeans(FetchData(seuratObj, vars = gene_list$cluster)))
-                        }
-                        colnames(pool_genesVln) <- c("resolution","GeneList")
-                        ggplot(pool_genesVln, aes(x=resolution,y=GeneList, fill = resolution))+geom_violin()+scale_fill_hue()
-                    }else{
-                        Idents(seuratObj) <- input$clusterwatch
-                        sbt1 <- AddModuleScore(seuratObj, features =list(gene_list$cluster), name = "Gene_list")
-                        VlnPlot(sbt1, features = "Gene_list1")
-                    }
-                    
-                }
-                output$ViolinPlotMultGenesPooledFilesInput <- renderPlot({
-                    poolGenefromListVP()
-                })
-                
-                DotplotPooledFromFile <- function(){
-                    validate(
-                        need(input$fileGeneList, "Choose a file that contain a list of genes to display the projection.")
-                    )
-                    gene_list <- read.csv(input$fileGeneList$datapath, header=TRUE)
-                    colnames(gene_list) <- "cluster"
-                    if(input$SumorMeans == "Sum"){
-                        Idents(seuratObj) <-  input$clusterwatch
-                        test <- as.data.frame(cbind(rowSums(FetchData(seuratObj, vars =gene_list$cluster)),seuratObj[[input$clusterwatch]]))
-                        colnames(test)<- c("V1","V2")
-                        percentExpressed <- test %>% group_by(V2) %>%count(V1 > 0)
-                        colnames(percentExpressed) <- c("cluster", "logical","number")
-                        percentExpressed <- filter(percentExpressed, logical == "TRUE")
-                        totalCellsbyCluster <- test %>% group_by(V2) %>% tally()
-                        percent <- percentExpressed$number/totalCellsbyCluster$n
-                        percent <- as.data.frame(cbind(cluster = levels(seuratObj),RatioCellsExpressingGeneList = percent))
-                        avgExpression <-test %>% group_by(V2) %>%summarise(avg =sum(V1))
-                        percent <- cbind(percent, SumExp =avgExpression$avg, GeneList = rep("Gene_list",length(percent$cluster)))
-                        percent$RatioCellsExpressingGeneList <- as.numeric(percent$RatioCellsExpressingGeneList)
-                        ggplot(percent , aes(x= GeneList, y  = cluster , size = RatioCellsExpressingGeneList, color = SumExp))+geom_point()+scale_color_gradient(low = "lightgrey", high= "blue")
-                        
-                    }else if (input$SumorMeans == "Mean"){
-                        Idents(seuratObj) <-  input$clusterwatch
-                        test <- as.data.frame(cbind(rowMeans(FetchData(seuratObj, vars =gene_list$cluster)),seuratObj[[input$clusterwatch]]))
-                        colnames(test)<- c("V1","V2")
-                        percentExpressed <- test %>% group_by(V2) %>%count(V1 > 0)
-                        colnames(percentExpressed) <- c("cluster", "logical","number")
-                        percentExpressed <- filter(percentExpressed, logical == "TRUE")
-                        totalCellsbyCluster <- test %>% group_by(V2) %>% tally()
-                        percent <- percentExpressed$number/totalCellsbyCluster$n
-                        percent <- as.data.frame(cbind(cluster = levels(seuratObj),RatioCellsExpressingGeneList = percent))
-                        avgExpression <-test %>% group_by(V2) %>%summarise(avg =mean(V1))
-                        percent <- cbind(percent, AvgExp =avgExpression$avg, GeneList = rep("Gene_list",length(percent$cluster)))
-                        percent$RatioCellsExpressingGeneList <- as.numeric(percent$RatioCellsExpressingGeneList)
-                        ggplot(percent , aes(x= GeneList, y  = cluster , size = RatioCellsExpressingGeneList, color = AvgExp))+geom_point()+scale_color_gradient(low = "lightgrey", high= "blue")
-                    }else{
-                        Idents(seuratObj) <- input$clusterwatch
-                        sbt1 <- AddModuleScore(seuratObj, features =list(gene_list$cluster), name = "Gene_list")
-                        DotPlot(sbt1, features = "Gene_list1")
-                    }
-                    
-                }
-                output$DotPlotMultGenePooledFromFile <- renderPlot({
-                    DotplotPooledFromFile()
-                })
-                
-                
-                 ### Download plot with file ####
-                if(input$format2=="PNG"){
-                    output$downloadViolinPlotMultGenesPooledFilesInput <- downloadHandler(
-                        filename = "ViolinPlotMultGenesPooled.png",
-                        content = function(file){
-                            png(file, width = 1500 , height = 1100,res = 150)
-                            print(poolGenefromListVP())
-                            dev.off()
-                        }
-                    ) 
+                gene_list <- Readfile()
+                if(input$SumorMeans =="Sum" | input$SumorMeans == "Mean"){
+                  if(input$SumorMeans =="Sum"){
+                    gene_list_pooled <- rowSums(FetchData(seuratObj, vars = gene_list))
+                  }
+                  if(input$SumorMeans =="Mean"){
+                    gene_list_pooled <- rowMeans(FetchData(seuratObj, vars = gene_list))
+                  }
+                  gene_list_pooled <- cbind.data.frame(coord, counts = gene_list_pooled)
+                  ggplot(gene_list_pooled)+geom_point(aes(UMAP_1,UMAP_2, color = counts),shape=20, size=0.25)+ scale_color_gradient(low="lightgrey",high="blue") + theme_classic()
                 }else{
-                    output$downloadViolinPlotMultGenesPooledFilesInput <- downloadHandler(
-                        filename = "ViolinPlotMultGenesPooled.svg",
-                        content = function(file){
-                            svg(file, width = 14 , height = 7)
-                            print(poolGenefromListVP())
-                            dev.off()
-                        }
-                    )
+                  sbt1 <- AddModuleScore(seuratObj, features =gene_list, name = "Gene_list")
+                  FeaturePlot(sbt1, features = "Gene_list1")
                 }
-                
-                if(input$format2=="PNG"){
-                    output$downloadfeatureplotMultGenesPooledFilesInput <- downloadHandler(
-                        filename = "featurePlotFilesInput.png",
-                        content = function(file){
-                            png(file, width = 1500 , height = 1100,res = 150)
-                            print(poolGeneFromList())
-                            dev.off()
-                        }
-                    )  
+              }
+              
+              output$FeaturePlotMultGenesPooledFilesInput <- renderPlot({
+                poolGeneFromList()
+              })
+              
+              poolGenefromListVP <- function(){
+                validate(
+                  need(input$fileGeneList,"Choose a file that contain a list of genes to display the projection.")
+                )
+                gene_list <- Readfile()
+                if(input$SumorMeans =="Sum" | input$SumorMeans == "Mean"){
+                  if(input$SumorMeans =="Sum"){
+                    if(input$ResOrAnnotMult == "Resolution"){
+                      pool_genesVln <- cbind(seuratObj[[input$clusterwatch]],rowSums(FetchData(seuratObj, vars = gene_list)))
+                    }else{
+                      pool_genesVln <- cbind(seuratObj[[input$annotationwatch]],rowSums(FetchData(seuratObj, vars = gene_list)))
+                    }
+                  }
+                  if(input$SumorMeans =="Mean"){
+                    if(input$ResOrAnnotMult == "Resolution"){
+                      pool_genesVln <- cbind(seuratObj[[input$clusterwatch]],rowMeans(FetchData(seuratObj, vars = gene_list)))
+                    }else{
+                      pool_genesVln <- cbind(seuratObj[[input$annotationwatch]],rowMeans(FetchData(seuratObj, vars = gene_list)))
+                    }
+                  }
+                  colnames(pool_genesVln) <- c("resolution","GeneList")
+                  ggplot(pool_genesVln, aes(x=resolution,y=GeneList, fill = resolution))+geom_violin()+scale_fill_hue()
                 }else{
-                    output$downloadfeatureplotMultGenesPooledFilesInput <- downloadHandler(
-                        filename = "featurePlotFilesInput.svg",
-                        content = function(file){
-                            svg(file, width = 14 , height = 7)
-                            print(poolGeneFromList())
-                            dev.off()
-                        }
-                    )
+                  if(input$ResOrAnnotMult == "Resolution"){
+                    Idents(seuratObj) <- input$clusterwatch
+                  }else{
+                    Idents(seuratObj) <- input$annotationwatch
+                  }
+                  sbt1 <- AddModuleScore(seuratObj, features =gene_list, name = "Gene_list")
+                  VlnPlot(sbt1, features = "Gene_list1")
                 }
                 
-                if(input$format2 == "PNG"){
-                    output$downloadDotPlotMultGenesPooledFilesInput<- downloadHandler(
-                        filename = "DotPlotMultGenesPooled.png",
-                        content = function(file){
-                            png(file, width = 1500 , height = 1100,res = 150)
-                            print(DotplotPooledFromFile())
-                            dev.off()
-                        }
-                    )
+              }
+              output$ViolinPlotMultGenesPooledFilesInput <- renderPlot({
+                poolGenefromListVP()
+              })
+              
+              DotplotPooledFromFile <- function(){
+                validate(
+                  need(input$fileGeneList, "Choose a file that contain a list of genes to display the projection.")
+                )
+                gene_list <- Readfile()
+                if(input$SumorMeans == "Sum"){
+                  if(input$ResOrAnnotMult == "Resolution"){
+                    Idents(seuratObj) <- input$clusterwatch
+                  }else{
+                    Idents(seuratObj) <- input$annotationwatch
+                  }
+                  test <- as.data.frame(cbind(rowSums(FetchData(seuratObj, vars =gene_list)),seuratObj[[input$clusterwatch]]))
+                  colnames(test)<- c("V1","V2")
+                  percentExpressed <- test %>% group_by(V2) %>%count(V1 > 0)
+                  colnames(percentExpressed) <- c("cluster", "logical","number")
+                  percentExpressed <- filter(percentExpressed, logical == "TRUE")
+                  totalCellsbyCluster <- test %>% group_by(V2) %>% tally()
+                  percent <- percentExpressed$number/totalCellsbyCluster$n
+                  percent <- as.data.frame(cbind(cluster = levels(seuratObj),RatioCellsExpressingGeneList = percent))
+                  avgExpression <-test %>% group_by(V2) %>%summarise(avg =sum(V1))
+                  percent <- cbind(percent, SumExp =avgExpression$avg, GeneList = rep("Gene_list",length(percent$cluster)))
+                  percent$RatioCellsExpressingGeneList <- as.numeric(percent$RatioCellsExpressingGeneList)
+                  ggplot(percent , aes(x= GeneList, y  = cluster , size = RatioCellsExpressingGeneList, color = SumExp))+geom_point()+scale_color_gradient(low = "lightgrey", high= "blue")
+                  
+                }else if (input$SumorMeans == "Mean"){
+                  if(input$ResOrAnnotMult == "Resolution"){
+                    Idents(seuratObj) <- input$clusterwatch
+                  }else{
+                    Idents(seuratObj) <- input$annotationwatch
+                  }
+                  test <- as.data.frame(cbind(rowMeans(FetchData(seuratObj, vars =gene_list)),seuratObj[[input$clusterwatch]]))
+                  colnames(test)<- c("V1","V2")
+                  percentExpressed <- test %>% group_by(V2) %>%count(V1 > 0)
+                  colnames(percentExpressed) <- c("cluster", "logical","number")
+                  percentExpressed <- filter(percentExpressed, logical == "TRUE")
+                  totalCellsbyCluster <- test %>% group_by(V2) %>% tally()
+                  percent <- percentExpressed$number/totalCellsbyCluster$n
+                  percent <- as.data.frame(cbind(cluster = levels(seuratObj),RatioCellsExpressingGeneList = percent))
+                  avgExpression <-test %>% group_by(V2) %>%summarise(avg =mean(V1))
+                  percent <- cbind(percent, AvgExp =avgExpression$avg, GeneList = rep("Gene_list",length(percent$cluster)))
+                  percent$RatioCellsExpressingGeneList <- as.numeric(percent$RatioCellsExpressingGeneList)
+                  ggplot(percent , aes(x= GeneList, y  = cluster , size = RatioCellsExpressingGeneList, color = AvgExp))+geom_point()+scale_color_gradient(low = "lightgrey", high= "blue")
                 }else{
-                    output$downloadDotPlotMultGenesPooledFilesInput<- downloadHandler(
-                        filename = "DotPlotMultGenesPooled.svg",
-                        content = function(file){
-                            svg(file, width = 14 , height = 7)
-                            print(DotplotPooledFromFile())
-                            dev.off()
-                        }
-                    )
+                  if(input$ResOrAnnotMult == "Resolution"){
+                    Idents(seuratObj) <- input$clusterwatch
+                  }else{
+                    Idents(seuratObj) <- input$annotationwatch
+                  }
+                  sbt1 <- AddModuleScore(seuratObj, features =gene_list, name = "Gene_list")
+                  DotPlot(sbt1, features = "Gene_list1")
                 }
                 
-                output$FeaturePlotMultGenesPooledFilesInput <- renderPlot({
-                    poolGeneFromList()
-                })
+              }
+              output$DotPlotMultGenePooledFromFile <- renderPlot({
+                DotplotPooledFromFile()
+              })
+              
+              
+              
+              if(input$format2=="PNG"){
+                output$downloadViolinPlotMultGenesPooledFilesInput <- downloadHandler(
+                  filename = "ViolinPlotMultGenesPooled.png",
+                  content = function(file){
+                    png(file, width = 1500 , height = 1100,res = 150)
+                    print(poolGenefromListVP())
+                    dev.off()
+                  }
+                ) 
+              }else{
+                output$downloadViolinPlotMultGenesPooledFilesInput <- downloadHandler(
+                  filename = "ViolinPlotMultGenesPooled.svg",
+                  content = function(file){
+                    svg(file, width = 14 , height = 7)
+                    print(poolGenefromListVP())
+                    dev.off()
+                  }
+                )
+              }
+              
+              if(input$format2=="PNG"){
+                output$downloadfeatureplotMultGenesPooledFilesInput <- downloadHandler(
+                  filename = "featurePlotFilesInput.png",
+                  content = function(file){
+                    png(file, width = 1500 , height = 1100,res = 150)
+                    print(poolGeneFromList())
+                    dev.off()
+                  }
+                )  
+              }else{
+                output$downloadfeatureplotMultGenesPooledFilesInput <- downloadHandler(
+                  filename = "featurePlotFilesInput.svg",
+                  content = function(file){
+                    svg(file, width = 14 , height = 7)
+                    print(poolGeneFromList())
+                    dev.off()
+                  }
+                )
+              }
+              
+              if(input$format2 == "PNG"){
+                output$downloadDotPlotMultGenesPooledFilesInput<- downloadHandler(
+                  filename = "DotPlotMultGenesPooled.png",
+                  content = function(file){
+                    png(file, width = 1500 , height = 1100,res = 150)
+                    print(DotplotPooledFromFile())
+                    dev.off()
+                  }
+                )
+              }else{
+                output$downloadDotPlotMultGenesPooledFilesInput<- downloadHandler(
+                  filename = "DotPlotMultGenesPooled.svg",
+                  content = function(file){
+                    svg(file, width = 14 , height = 7)
+                    print(DotplotPooledFromFile())
+                    dev.off()
+                  }
+                )
+              }
+              
             })
-            
-           # if(input$format == "PNG"){
-           #     output$downloadfeatureplotMultGenesPooledFilesInput <- downloadHandler(
-           #         filename = "featurePlotFilesInput.png",
-           #         content = function(file){
-           #             png(file, width = 1500 , height = 1100,res = 150)
-           #             print(poolGeneFromList())
-           #             dev.off()
-           #         }
-           #     ) 
-           # }else{
-           #     output$downloadfeatureplotMultGenesPooledFilesInput <- downloadHandler(
-           #         filename = "featurePlotFilesInput.svg",
-           #         content = function(file){
-           #             svg(file, width = 14 , height = 7)
-           #             print(poolGeneFromList())
-           #             dev.off()
-           #         }
-           #     )
-           # }
-            
-            
             ###########################################
             ########  Information extraction #########
             ###########################################
@@ -2130,11 +2485,13 @@ server <- function(input, output,session) {
                             DimPlot(seuratObj, group.by = input$clusterName, label = T)
                         }) 
                         toremove <- c(grep(names(seuratObj@meta.data),pattern ="nCount_*", value =T),grep(names(seuratObj@meta.data),pattern ="nFeature_*", value =T),grep(names(seuratObj@meta.data),pattern ="snn_res.*", value =T),"percent.mt","S.Score", "G2M.Score")
-                        choices <- names(seuratObj@meta.data)
+                        choices <- colnames(seuratObj@meta.data)
                         choices_annot <- choices[-which(choices %in% toremove )]
                         updateSelectizeInput(session,"chooseVar2Plot", choices=choices)
-                        updateSelectizeInput(session,"whichAnnot", choices=choices)
+                        updateSelectizeInput(session,"whichAnnot", choices=choices_annot)
                         updateSelectizeInput(session,"Annot2Complete", choices =choices_annot)
+                        updateSelectizeInput(session, "AnnotationDataMining", choices = choices_annot)
+                        updateSelectizeInput(session,"annotationwatch",choices = choices_annot)
                         
                     }
                 }else{
@@ -2167,8 +2524,8 @@ server <- function(input, output,session) {
             ######################################
             ########### Subclustering ############
             ######################################
-            removeInfo <- c(grep(names(seuratObj@meta.data),pattern ="*_snn_res.*", value =T),grep(names(seuratObj@meta.data),pattern ="nCount_*", value =T),grep(names(seuratObj@meta.data),pattern ="nFeature_*", value =T),"percent.mt","S.Score", "G2M.Score")
-            annotation_sub <- names(seuratObj@meta.data)
+            removeInfo <- c(grep(names(seuratObj@meta.data),pattern ="*_snn_res.*", value =T),grep(names(seuratObj@meta.data),pattern ="nCount_*", value =T),grep(names(seuratObj@meta.data),pattern ="nFeature_*", value =T),"percent.mt","S.Score", "G2M.Score","seurat_clusters")
+            annotation_sub <- colnames(seuratObj@meta.data)
             annotation_sub <- annotation_sub[-which(annotation_sub %in% removeInfo)]
             updateSelectizeInput(session,"clusterResPage7",choices = available_resolution,server =TRUE)
             updateSelectizeInput(session,"whichAnnot", choices = annotation_sub, server = TRUE)
@@ -2219,8 +2576,7 @@ server <- function(input, output,session) {
                         subsetSeuratObj <<- subset(seuratObj, cells = test)
                         
                     })
-                }
-                else{
+                }else{
                     Idents(seuratObj) <- input$whichAnnot
                     annotSbt <- levels(seuratObj)
                     updateSelectInput(session, "subannot", choices = annotSbt)
@@ -2253,7 +2609,7 @@ server <- function(input, output,session) {
                                         DimPlot(seuratObj, cells.highlight = test, order = T)+scale_color_manual(labels = c("Not kept", "Kept"), values = c("gray", "red"))+theme(legend.position= "top", legend.text = element_text(size = 8))
                                     })
                                 }  
-                            }  
+                            }
                         }
                         subsetSeuratObj <<- subset(seuratObj, cells = test) # the double <<- is used to fill a value wich is in observeEvent but that we want to keep for after
                         
@@ -2277,7 +2633,6 @@ server <- function(input, output,session) {
                                  },
                                  finally = subsetSeuratObj <<- RunPCA(subsetSeuratObj) )
                     }else{
-                        DefaultAssay(subsetSeuratObj) <- "SCT"
                         subsetSeuratObj <<- RunPCA(subsetSeuratObj)
                     }
                     incProgress(1/4,message ="Finish running PCA")
@@ -2285,6 +2640,7 @@ server <- function(input, output,session) {
                     incProgress(1/4,message ="Running UMAP")
                     subsetSeuratObj <<- RunUMAP(subsetSeuratObj, dims = 1:30)
                     incProgress(1/4,message ="Finish running UMAP")
+                    
                 })
                 withProgress(message ="Find cluster", value=0,{
                     for(i in seq(0,1,0.1)){

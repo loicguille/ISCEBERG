@@ -1,7 +1,10 @@
 ---
 title: "Log file"
-author: "Loïc Guille"
-date: "25/03/2022"
+author: 
+  - Loïc Guille ^[University of Lille, loic.guille@univ-lille.fr]
+  
+  - Julie Chevalier ^[Inserm, julie.chevalier@inserm.fr]
+date: "`r format(Sys.time(), '%d %b, %Y')`"
 output: html_document
 ---
 
@@ -9,19 +12,17 @@ output: html_document
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-# Single cell browser version 1.0
+# ISCEBERG 1.0
 
-Contact : loic.guille@univ-lille.fr
+Contact : loic.guille@univ-lille.fr, julie.chevalier@inserm.fr
 
 U1011 Nuclear receptors, Metabolic and cardiovasculary disease
 
-github : https://github.com/loicguille/beta_scBrowser
+github : https://github.com/loicguille/ISCEBERG
 
-## Packages used :
+# Citation
 
-```{r package}
-sessionInfo()
-```
+Loïc Guille, Manuel Johanns, Francesco Zummo, Bart Staels, Philippe Lefebvre, Jérôme Eeckhoute, & Julie Dubois-Chevalier. (2022). ISCEBERG : Interactive Single Cell Expression Browser for Exploration of RNAseq data using Graphics (v1.0.1). Zenodo. https://doi.org/10.5281/zenodo.6563734
 
 ## Command used :
 
@@ -29,3 +30,8 @@ sessionInfo()
 
 ```
 
+## Packages used :
+
+```{r package}
+sessionInfo()
+```

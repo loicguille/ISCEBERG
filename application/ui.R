@@ -23,7 +23,7 @@ ui <- fluidPage(
     theme = bslib::bs_theme(bootswatch = "flatly"),
     useShinyjs(),
     # Application title
-    titlePanel("Single-cell data analysis"),
+    titlePanel(title="ISCEBERG"),
     
     navbarPage("",id = "tabs",
                tabPanel("Pre-processing", icon = icon("upload"),
@@ -34,18 +34,20 @@ ui <- fluidPage(
                                 conditionalPanel(condition = "input.file == 'Mtx' ", fileInput("MatrixFile", "Upload Matrix", multiple = TRUE), fileInput("GeneFile", "Upload gene or feature file", multiple = TRUE), fileInput("CellsFile", "Upload barcode", multiple = TRUE)),
                                 conditionalPanel(condition = "input.file == 'CSV'  | input.file == 'Txt' ", radioButtons("header", "Is the file(s) containing header(s) ?", choices =c("Yes", "No")),radioButtons("separator", "What is the separator of your file ?", choices = c(",", ";","tab"))),
                                 br(),
-                                conditionalPanel(condition = "input.file != 'RDS' ", numericInput("MinGeneByCells", "How many time a gene has to be expressed to be keeped", min = 0,max = 100 , value = 3),numericInput("MinCells", "How many genes a cells has to express to be keeped", value = 100, min = 0, max = 1000, step = 10)),
+                                conditionalPanel(condition = "input.file != 'RDS' ", numericInput("MinGeneByCells", "How many cells a gene has to be found in to be kept", min = 0,max = 100 , value = 3),numericInput("MinCells", "How many genes a cells has to express to be kept", value = 100, min = 0, max = 1000, step = 10)),
                                 actionButton("createSeurat","Run Pre-processing"),
                                 actionButton("Refresh","Refresh data"),
                                 width = 2
                             ),
                             mainPanel(
+                                column(6,uiOutput('Isceberg')),
+                                includeMarkdown("../Documentation/Help.md"),
                                 fluidRow(
-                                    column(6,
-                                           uiOutput("memoryCons")),
-                                    column(6,
-                                           uiOutput("timeCons"))),
-                                DT::dataTableOutput("dataoverview")
+                                  titlePanel("Ressource consumption"),
+                                  column(6,
+                                         uiOutput("memoryCons")),
+                                  column(6,
+                                         uiOutput("timeCons")))
                             )
                         ),
                         
@@ -146,10 +148,13 @@ ui <- fluidPage(
                tabPanel("Data mining for one gene",icon = icon("search"),
                         sidebarLayout(
                             sidebarPanel(
-                                selectizeInput("ResolutionDataMining","Select a resolution to use to calculate the number of clusters", choices = character(0)),
+                                radioButtons("ResOrAnnot", "Data you want to use", choices =c("Resolution","Annotation")),
+                                conditionalPanel(condition = "input.ResOrAnnot == 'Resolution'" ,selectizeInput("ResolutionDataMining","Select a resolution to use to calculate the number of clusters", choices = character(0))),
+                                conditionalPanel(condition = "input.ResOrAnnot == 'Annotation'" ,selectizeInput("AnnotationDataMining","Select an annotation to use for vizualization", choices = character(0))),
                                 selectizeInput("GeneList", "Select a list of genes that you want to plot (max 10)", choices=character(0), multiple = T,  options = list(maxItems=10)),
                                 radioButtons("keepscale","Do you want to show the feature plot with the same scale ? ", choices=c("Yes", "No")),
                                 radioButtons("format", "Download plot as : ", choices=c("PNG", "SVG")),
+                                downloadButton('downloadMatrix',"Download entire matrix"),
                                 width = 2
                             ),
                             mainPanel(
@@ -184,11 +189,17 @@ ui <- fluidPage(
                    sidebarLayout(
                        sidebarPanel(
                            h1("Gene List"),
-                           selectizeInput("clusterwatch", "Select a resolution", choices=character(0)),
+                           radioButtons("ResOrAnnotMult", "Data you want to use", choices =c("Resolution","Annotation")),
+                           conditionalPanel(condition = "input.ResOrAnnotMult == 'Resolution'" ,selectizeInput("clusterwatch","Select a resolution to use to calculate the number of clusters", choices = character(0))),
+                           conditionalPanel(condition = "input.ResOrAnnotMult == 'Annotation'" ,selectizeInput("annotationwatch","Select an annotation to use for vizualization", choices = character(0))),
                            selectizeInput("GeneListPool", "Gene list you want to pool together", choices= character(0), multiple=T),
                            fileInput("fileGeneList","Upload gene list file"),
                            radioButtons("SumorMeans", "Do you want that the UMAP projection represent the sum or the mean of the expression of the genes list ?", choices=c("Sum","Mean","AddModuleScore Function"), selected = "Sum"),
                            radioButtons("format2", "Download plot as : ", choices=c("PNG", "SVG")),
+                           downloadButton('downloadMatrixMultList',"Download entire matrix from list"),
+                           br(),
+                           br(),
+                           downloadButton('downloadMatrixMultFile',"Download entire matrix from file"),
                            width=2),
                        mainPanel(
                            fluidRow(
