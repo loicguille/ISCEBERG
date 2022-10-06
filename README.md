@@ -32,7 +32,7 @@ All the functionnalities are listed here. For more details see the Documentation
 
 Here is the procedure to install our application :
 
-`gitclone https://github.com/loicguille/ISCEBERG.git`
+`git clone https://github.com/loicguille/ISCEBERG.git`
 
 `cd ISCEBERG`
 
