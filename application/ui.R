@@ -41,7 +41,7 @@ ui <- fluidPage(
                             ),
                             mainPanel(
                                 column(6,uiOutput('Isceberg')),
-                                includeMarkdown("../Documentation/Help.md"),
+                                uiOutput("Help_file"),
                                 fluidRow(
                                   titlePanel("Ressource consumption"),
                                   column(6,
