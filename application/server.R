@@ -15,6 +15,7 @@ library(plotly)
 library(grid)
 library(dplyr)
 library(shinymanager)
+library(rmarkdown)
 
 
 
@@ -41,9 +42,9 @@ server <- function(input, output,session) {
     output$timeCons <- renderUI({
         img(src = "time.jpeg", height = "100%", width = "100%")
         })
-    output$Help_file <- renderUI({
-      includeHTML("Help.html")
-    })
+    #output$Help_file <- renderUI({
+    #  includeHTML("Help.html")
+    #})
     observe({
         shinyjs::toggleState("createSeurat", !is.null(input$InputFile) && input$InputFile != "" ||  !is.null(input$MatrixFile) && input$MatrixFile != "" ||  !is.null(input$listFiles) && input$listFiles!= "")#allow to grey a button
     })
