@@ -15,7 +15,7 @@ library(plotly)
 library(grid)
 library(dplyr)
 library(shinymanager)
-library(rmarkdown)
+library(gridExtra)
 
 
 
@@ -57,6 +57,82 @@ server <- function(input, output,session) {
         shinyalert("warning", "Do this operation will reset all what you have done before", type = "warning", showCancelButton = TRUE, callbackR = function(x){if(x == TRUE){shinyjs::refresh()}})
         
     })
+
+    #### Little function
+    FP <- function(object, gene){ # function that allow the construction of featureplot recursively
+      validate(
+        need(gene != "","Select at least one gene")
+      )
+      FeaturePlot(object, features = gene)
+      
+    }
+    
+    #Violin plot generator
+    vnPlot <- function(object,gene){ #Take in entry seurat object and one gene, function used in data mining with one gene
+      validate(
+        need(gene != "","Choose at least one gene and it will show you the violin plot of this gene in function of the different clusters, you can choose 10 different gene ids to plot")
+      )
+      VlnPlot(object, features = gene, pt.size = 0)
+    }
+    
+    vizu_UMAP <- function(obj, var = NULL, dlabel){
+      DimPlot(obj,group.by = var, label = dlabel, label.size = 6)
+    }
+    
+    nbCellsbydt <- function(obj){
+      cells_by_dt <- data.frame(table(obj$orig.ident))
+      ggplot(cells_by_dt,aes(Var1,Freq, fill=Var1))+geom_bar(stat = "identity")+ggtitle("Number of cells by datasets")+geom_text(aes(label=Freq), position=position_dodge(width=0.9), vjust=-0.25)
+    }
+    
+    UmapNbGenesCell <- function(obj){
+      coord_Umap <- Embeddings(obj[["umap"]])[,1:2]
+      expressed_cells <- cbind.data.frame(counts=colSums(obj@assays$RNA@data > 0),coord_Umap)
+      ggplot(expressed_cells, aes(UMAP_1,UMAP_2, color = counts))+geom_point(shape =20, size=0.25)+scale_color_gradient(low="lightgrey", high="blue")+theme_classic()+ggtitle("Number of expressed genes by cells")
+    }
+    
+    makeVlnGreatAgain <- function(obj,var, grouping, col = 1){
+      VlnPlot(object = obj, features = var, group.by = grouping, ncol = col, pt.size = 0 )
+    }
+    MakeUMAPhighlight <- function( obj, highliht_cells , sizePoint = 0.5, sizeHighlight = 0.25){
+      DimPlot(obj, cells.highlight = highliht_cells, order = T,pt.size = sizePoint,sizes.highlight = sizeHighlight)+scale_color_manual(labels = c("Not kept","Kept"), values = c("gray","red"))+theme(legend.text = element_text(size = 10))
+    }
+    MakeUMAP_Red <- function( obj, highliht_cells , sizePoint = 0.5, sizeHighlight = 0.25){
+      DimPlot(obj, cells.highlight = highliht_cells, order = T,pt.size = sizePoint,sizes.highlight = sizeHighlight)+scale_color_manual(labels = c("Kept"), values = c("red"))+theme(legend.text = element_text(size = 10))
+    }
+    MakeComplicatedVln <- function(obj, Giventitle, var){
+      nfeat <- VlnPlot(obj,group.by = var, features = c("nFeature_RNA"), pt.size = 0)+theme(legend.position ="none")+geom_hline(yintercept = c(input$minGenePerCells,input$maxGenePerCells), color = c("red", "red"))
+      ncount <- VlnPlot(obj,group.by = var, features = c("nCount_RNA"), pt.size = 0)+theme(legend.position ="none")+geom_hline(yintercept = input$maxCountPerCells, color = "red ")
+      pmt <- VlnPlot(obj,group.by = var, features = c("percent.mt"), pt.size = 0)+theme(legend.position ="none")+geom_hline(yintercept = input$percentMito, color = "red")
+      grid.arrange(nfeat,ncount,pmt,nrow=1, top = textGrob(Giventitle, gp =gpar(col="black", fontsize =20, fontface ="bold"))) ## arrange all the plot between them
+    }
+    Plotnbcellsbeforeafter <- function(objBefore, objAfter){
+      dfNbcells <- data.frame(time = c("before_filtering", "after_filtering"),nb_cells = c(dim(objBefore)[2],dim(objAfter)[2]))
+      ggplot(dfNbcells,aes(x= time, y = nb_cells, fill = time))+geom_bar(stat = "identity")+scale_x_discrete(limits=c("before_filtering", "after_filtering"))+ggtitle("Impact of filtering on the number of cells")+geom_text(aes(label=nb_cells), position=position_dodge(width=0.9), vjust=-0.25)
+    }
+    
+    violinPlot <- function(seuratObj,genes,var1,var2, conditionVar2, conditionVar1){
+      validate(need(var1 != var2 & conditionVar2 != "" & conditionVar1 != "" & genes != "","Need that the two variable your are looking for are different and that the list of the condition you want to look at aren't empty"))
+      unfiltered_table <- FetchData(seuratObj, vars = c(genes, var1, var2))
+      filtered_table <- data.frame()
+      for(i in 1:length(conditionVar1)){
+        for(j in 1:length(conditionVar2)){
+          filtered_table <- rbind(filtered_table,unfiltered_table %>% filter(unfiltered_table[var1] == conditionVar1[i] & unfiltered_table[var2] == conditionVar2[j]))
+        }
+        j=1
+      }
+      
+      colnames(filtered_table) <- c("gene","variable1", "variable2")
+      graph <- ggplot(filtered_table)+geom_violin(aes(variable1,gene, fill = variable2), scale = "width") + xlab("Identity")+ylab("Expression Level") +guides(fill = guide_legend(title=var2))+theme_classic()+ggtitle(genes)+theme(plot.title = element_text(face="bold",hjust = 0.5))
+      return(graph)
+    }
+    
+    ViolinForDl <- function(seuratObject, geneList, var1, var2, conditionVar1, conditionVar2 ){## encapsulation of downloadable plot for split object in rendering Violinplot
+      Violins <- list()
+      for(i in 1:length(geneList)){
+        Violins[[i]] <- violinPlot(seuratObj = seuratObject, genes = geneList[i],var1 = var1, var2 = var2, conditionVar1 = conditionVar1, conditionVar2 = conditionVar2)
+      }
+      do.call(grid.arrange,Violins)
+    }
     #####################################################################################################################################################
     ############################### Create or Upload Seurat object ######################################################################################
     #####################################################################################################################################################
@@ -76,6 +152,7 @@ server <- function(input, output,session) {
         shinyjs::hide("Metadata")
         shinyjs::hide("MinGeneByCells")
         shinyjs::hide("MinCells")
+        shinyjs::hide("download_barplot_before_after")
         tmp <- list()
         metadata <- list()
         matrix <- list()
@@ -243,12 +320,26 @@ server <- function(input, output,session) {
                 }
             }
             seuratObj[["percent.mt"]] <- PercentageFeatureSet(seuratObj, pattern = "^mt-")
-            output$PreProcessPlot <- renderPlot({
-                VlnPlot(seuratObj, features = c("nFeature_RNA", "nCount_RNA", "percent.mt"), ncol = 3, pt.size = 0)
+             output$PreProcessPlot <- renderPlot({
+                makeVlnGreatAgain(seuratObj, grouping = "orig.ident",var = c("nFeature_RNA", "nCount_RNA", "percent.mt"), ncol = 3)
             })
+            output$downloadVln<- downloadHandler(
+              filename="VlnPlot_QC.png",
+              content=function(file){
+                png(file, width = 1500 , height = 1100,res = 150)
+                print(makeVlnGreatAgain(seuratObj,  grouping = "orig.ident",var = c("nFeature_RNA", "nCount_RNA", "percent.mt"), ncol = 3))
+                dev.off()
+              })
             output$BeforeFiltering <- renderPlot({
-                VlnPlot(seuratObj, features = c("nFeature_RNA","nCount_RNA","percent.mt"), ncol = 3, pt.size = 0) 
+              MakeComplicatedVln(seuratObj,var = "orig.ident", "QC before subsetting datasets")
             })
+            output$downloadBeforeFiltering<- downloadHandler(
+              filename="VlnPlot_before_filt.png",
+              content=function(file){
+                png(file, width = 14 , height = 7)
+                print(MakeComplicatedVln(seuratObj,var = "orig.ident", "QC before subsetting datasets"))
+                dev.off()
+              })
             if(rdsbool == FALSE){
                 showTab(inputId = "tabs", target = "filtering")
                 shinyjs::hide("downloadSeurat")
@@ -272,7 +363,7 @@ server <- function(input, output,session) {
         if(rdsbool == FALSE){
             observeEvent(input$runFiltNorm,{
                 shinyjs::disable("runFiltNorm")
-                SeuratObjsubset <- subset(seuratObj, subset = nFeature_RNA > input$minGenePerCells & nFeature_RNA < input$maxGenePerCells & percent.mt < input$percentMito)
+                SeuratObjsubset <- subset(seuratObj, subset = nFeature_RNA > input$minGenePerCells & nFeature_RNA < input$maxGenePerCells & percent.mt < input$percentMito & nCount_RNA < input$maxCountPerCells)
                 withProgress(message = "Normalizing data", value = 0,{
                     if(input$normalization == "SCTransform"){
                         
@@ -306,6 +397,7 @@ server <- function(input, output,session) {
                 shinyjs::show("downloadSeurat")
                 shinyjs::show("downloadLogFile")
                 shinyjs::show("NameSeuratLog")
+                shinyjs::show("download_barplot_before_after")
                 observe({
                     shinyjs::toggleState("downloadSeurat",input$NameSeuratLog != "")
                 })
@@ -328,7 +420,7 @@ server <- function(input, output,session) {
                     content = function(file){
                         tempReport <- file.path(tempdir(),"logFile.Rmd")
                         file.copy("logFile.Rmd", tempReport,overwrite = T)
-                        line <- paste0("\tSeuratObjsubset <- subset(seuratObj, subset = nFeature_RNA > ",input$minGenePerCells," & nFeature_RNA < ",input$maxGenePerCells," & percent.mt < ",input$percentMito,")\n")
+                        line <- paste0("\tSeuratObjsubset <- subset(seuratObj, subset = nFeature_RNA > ",input$minGenePerCells," & nFeature_RNA < ",input$maxGenePerCells," & nCount_RNA < ",input$maxCountPerCells," & percent.mt < ",input$percentMito,")\n")
                         write(line,tempReport, append =TRUE)
                         if(input$normalization == "SCTransform"){
                             line <- paste0("\tSeuratObjsubset <- SCTransform(SeuratObjsubset)\n")
@@ -374,30 +466,79 @@ server <- function(input, output,session) {
                     }
                 )
                 output$AfterFiltering <- renderPlot({
-                    VlnPlot(SeuratObjsubset, group.by = "Project", features = c("nFeature_RNA","nCount_RNA","percent.mt"), ncol = 3, pt.size = 0)
+                  MakeComplicatedVln(SeuratObjsubset,var = "orig.ident", "QC after subsetting datasets")
                 })
+                output$downloadAfterFiltering<- downloadHandler(
+                  filename="VlnPlot_after_filt.png",
+                  content=function(file){
+                    png(file, width = 1500 , height = 1100,res = 150)
+                    print(MakeComplicatedVln(SeuratObjsubset,var = "orig.ident", "QC after subsetting datasets"))
+                    dev.off()
+                  })
                 output$clusteringPlot <- renderPlot({
-                    DimPlot(SeuratObjsubset)
+                    vizu_UMAP(SeuratObjsubset, var = NULL, dlabel = input$showlabelcluster)
                 })
+                output$download_clustering_plot<- downloadHandler(
+                  filename="UMAP_orig_ident.png",
+                  content=function(file){
+                    png(file, width = 1500 , height = 1100,res = 150)
+                    print(vizu_UMAP(SeuratObjsubset, var=NULL, dlabel = input$showlabelcluster))
+                    dev.off()
+                  })
+                
                 output$barplotBeforeAfter <- renderPlot({
-                    dfNbcells <- data.frame(time = c("before_filtering", "after_filtering"),nb_cells = c(dim(seuratObj)[2],dim(SeuratObjsubset)[2]))
-                    ggplot(dfNbcells,aes(x= time, y = nb_cells, fill = time))+geom_bar(stat = "identity")+scale_x_discrete(limits=c("before_filtering", "after_filtering"))+ggtitle("Impact of filtering on the number of cells")+geom_text(aes(label=nb_cells), position=position_dodge(width=0.9), vjust=-0.25)
+                    Plotnbcellsbeforeafter(objBefore = seuratObj,objAfter = SeuratObjsubset)
                 })
+                output$download_barplot_before_after<- downloadHandler(
+                  filename="plot_before_after.png",
+                  content=function(file){
+                    png(file, width = 1500 , height = 1100,res = 150)
+                    print(Plotnbcellsbeforeafter(objBefore = seuratObj ,objAfter = SeuratObjsubset))
+                    dev.off()
+                  })
                 output$cellcycle <- renderPlot({
                     validate(
                         need(try(SeuratObjsubset[["Phase"]]!=""),message = "No phase available in this seurat object")
                     )
-                    DimPlot(SeuratObjsubset, group.by = "Phase")
+                    vizu_UMAP(SeuratObjsubset, var = "Phase", dlabel = input$showlabelcc)
                 })
+                output$download_cell_cycle<- downloadHandler(
+                  filename="UMAP_cell_cycle.png",
+                  content=function(file){
+                    png(file, width = 1500 , height = 1100,res = 150)
+                    print(vizu_UMAP(SeuratObjsubset, var="Phase", dlabel = input$showlabelcc))
+                    dev.off()
+                  })
                 output$nbcells_by_datasets <- renderPlot({
-                    cells_by_dt <- data.frame(table(SeuratObjsubset$file))
-                    ggplot(cells_by_dt,aes(Var1,Freq, fill=Var1))+geom_bar(stat = "identity")+ggtitle("Number of cells by datasets")+geom_text(aes(label=Freq), position=position_dodge(width=0.9), vjust=-0.25)
+                  nbCellsbydt(SeuratObjsubset)
                 })
+                output$download_nb_cells_dt<- downloadHandler(
+                  filename="Plot_nb_cells_dt.png",
+                  content=function(file){
+                    png(file, width = 1500 , height = 1100,res = 150)
+                    print(nbCellsbydt(SeuratObjsubset))
+                    dev.off()
+                  })
                 output$geneExpByCell <- renderPlot({
-                    coord_Umap <- Embeddings(SeuratObjsubset[["umap"]])[,1:2]
-                    expressed_cells <- cbind.data.frame(counts=colSums(SeuratObjsubset@assays$RNA@data > 0),coord_Umap)
-                    ggplot(expressed_cells, aes(UMAP_1,UMAP_2, color = counts))+geom_point(shape =20, size=0.25)+scale_color_gradient(low="lightgrey", high="blue")+theme_classic()+ggtitle("Number of expressed genes by cells")
+                  UmapNbGenesCell(SeuratObjsubset)
                 })
+                output$download_nb_cells_dt<- downloadHandler(
+                  filename="UMAP_nb_genes_by_cells.png",
+                  content=function(file){
+                    png(file,width = 1500 , height = 1100,res = 150)
+                    print(UmapNbGenesCell(SeuratObjsubset))
+                    dev.off()
+                  })
+                output$BatchVizu <- renderPlot({
+                  vizu_UMAP(SeuratObjsubset, var = "file", dlabel = input$showlabelBatch)
+                })
+                output$downloadbatchVizu<- downloadHandler(
+                  filename="UMAP_batch_visu.png",
+                  content=function(file){
+                    png(file, width = 1500 , height = 1100,res = 150)
+                    print(vizu_UMAP(SeuratObjsubset, var = "file", dlabel = input$showlabelBatch))
+                    dev.off()
+                  })
                 ####################################
                 ######## cluster tree Page #########
                 ####################################
@@ -408,8 +549,15 @@ server <- function(input, output,session) {
                     clustree(SeuratObjsubset,prefix = paste0(SeuratObjsubset@active.assay,"_snn_res."))+theme(legend.position = "bottom")
                 })
                 output$DimplotTreePage <- renderPlot({
-                    DimPlot(SeuratObjsubset, group.by = input$resolution_TreePage, label = TRUE, label.size = 0.6)
+                    vizu_UMAP(SeuratObjsubset, var = input$resolution_TreePage, dlabel = input$addlabels_tree)
                 })
+                output$downloadUMAP_Tree_page<- downloadHandler(
+                  filename="UMAP_resolution_tree_page.png",
+                  content=function(file){
+                    png(file, width = 1500 , height = 1100,res = 150)
+                    print(vizu_UMAP(SeuratObjsubset, var = input$resolution_TreePage,dlabel = input$addlabels_tree))
+                    dev.off()
+                  })
                 output$nbCellsByClust_Tree_Page <- DT::renderDataTable({
                     count_by_cluster <- data.frame(table(SeuratObjsubset[[input$resolution_TreePage]]))
                     colnames(count_by_cluster) <- c("Cluster",'Number of cells')
@@ -429,8 +577,15 @@ server <- function(input, output,session) {
                     cluster_All <- c(Cluster_list,"All")
                     updateSelectizeInput(session,"Cluster2", choices = cluster_All ,server = TRUE)
                     output$DimplotMarkers <- renderPlot({
-                        DimPlot(SeuratObjsubset,group.by = input$resolutionDE, label = TRUE, label.size = 6)
+                        vizu_UMAP(SeuratObjsubset,var = input$resolutionDE, dlabel = input$addlabels_DE)
                     })
+                    output$downloadUMAP_DE_page<- downloadHandler(
+                      filename="UMAP_resolution_DE_page.png",
+                      content=function(file){
+                        png(file, width = 1500 , height = 1100,res = 150)
+                        print(vizu_UMAP(SeuratObjsubset, var = input$resolution_DE,dlabel = input$addlabels_DE))
+                        dev.off()
+                      })
                     
                 })
                 
@@ -482,79 +637,33 @@ server <- function(input, output,session) {
                 updateSelectizeInput(session, "AnnotationDataMining", choices = varAvail, server = TRUE)
                 gene <- SeuratObjsubset@assays$RNA@counts@Dimnames[[1]]
                 updateSelectizeInput(session,"GeneList", choices=gene, server = TRUE)
-                toListen <- reactive({list(input$ResolutionDataMining, input$keepscale,input$format, input$AnnotationDataMining,input$ResOrAnnot)})
+                updateSelectizeInput(session, "AnnotAgainst", choices=varAvail, server = T)
+                toListen <- reactive({list(input$ResolutionDataMining, input$AnnotationDataMining,input$format)})
                 observeEvent(toListen(),{
-                    if(input$format =="SVG"){
-                        shinyalert("warning", "SVG format is a good choice of graph for your paper because it can be easily formated but is heavier than PNG", "warning")
+                  if(input$format =="SVG"){
+                      shinyalert("warning", "SVG format is a good choice of graph for your paper because it can be easily formated but is heavier than PNG", "warning")
+                  }
+                
+                  if(input$ResOrAnnot == "Resolution"){
+                    Idents(SeuratObjsubset) <- input$ResolutionDataMining
+                    ident_obj <- input$ResolutionDataMining
+                  }else{
+                    Idents(SeuratObjsubset) <- input$AnnotationDataMining
+                    ident_obj <- input$AnnotationDataMining
+                  }
+                  ### Render FeaturePlot + saving them
+                  lapply(seq(10),function(x) # allow to create the 10 graphs
+                  {
+                    output[[paste0('FeaturePlotMultGenes',x)]] = renderPlot({FP(SeuratObjsubset,input$GeneList[x])})
+                  })
+                  output$downloadfeatureplot<- downloadHandler(
+                    filename="featureplot.png",
+                    content=function(file){
+                      png(file, width = 1500 , height = 1100,res = 150)
+                      print(FeaturePlot(SeuratObjsubset, features = input$GeneList))
+                      dev.off()
                     }
-                    if(input$ResOrAnnot == "Resolution"){
-                      Idents(SeuratObjsubset) <- input$ResolutionDataMining 
-                    }else{
-                      Idents(SeuratObjsubset) <- input$AnnotationDataMining
-                    }
-                    FP <- function(){
-                        validate(
-                            need(input$GeneList != "","Select at least one gene")
-                        )
-                        if(input$keepscale == "No"){
-                            val = "feature"
-                        }else{
-                            val = "all"
-                        }
-                        FeaturePlot(SeuratObjsubset, features = input$GeneList, keep.scale = val)
-                    }
-                    output$FeaturePlotMultGenes <- renderPlot({
-                        FP()    
-                    })
-                    if(input$format == "PNG"){
-                        output$downloadfeatureplot<- downloadHandler(
-                            filename="featureplot.png",
-                            content=function(file){
-                                png(file, width = 1500 , height = 1100,res = 150)
-                                print(FP())
-                                dev.off()
-                            }
-                        )
-                    }else{
-                        output$downloadfeatureplot<- downloadHandler(
-                            filename="featureplot.svg",
-                            content=function(file){
-                                svg(file, width = 14 , height = 7)
-                                print(FP())
-                                dev.off()
-                            }
-                        )
-                    }
-                    
-                    #Violin plot generator
-                    vnPlot <- function(){
-                        validate(
-                            need(input$GeneList != "","Choose at least one gene and it will show you the violin plot of this gene in function of the different clusters, you can choose 10 different gene ids to plot")
-                        )
-                        VlnPlot(SeuratObjsubset, features = input$GeneList, pt.size = 0)
-                    }
-                    output$ViolinPlot <- renderPlot({
-                        vnPlot()
-                    })
-                    if(input$format=="PNG"){
-                        output$VPdownload <- downloadHandler(
-                            filename = "violinplot.png",
-                            content = function(file){
-                                png(file, width = 1500 , height = 1100,res = 150)
-                                print(vnPlot())
-                                dev.off()
-                            }
-                        )  
-                    }else{
-                        output$VPdownload <- downloadHandler(
-                            filename = "violinplot.svg",
-                            content = function(file){
-                                svg(file, width = 14 , height = 7)
-                                print(vnPlot())
-                                dev.off()
-                            }
-                        )
-                    }
+                  )
                     
                     #Heatmap Generator 
                     Heatmap <- function(){
@@ -635,7 +744,14 @@ server <- function(input, output,session) {
                         }
                     )
                     output$clusterOutput<- renderPlot({
-                        DimPlot(SeuratObjsubset, label = TRUE, label.size = 6)
+                        vizu_UMAP(SeuratObjsubset,var= NULL,  dlabel = input$addlabels_ODM)
+                    })
+                    output$downloadUMAP_Cluster_resolution<- downloadHandler(
+                      filename="UMAP_resolution_data_mining_page.png",
+                      content=function(file){
+                        png(file, width = 1500 , height = 1100,res = 150)
+                        print(vizu_UMAP(SeuratObjsubset,var = NULL, dlabel = input$addlabels_ODM))
+                        dev.off()
                     })
                     dataMatrixEntire <- reactive(FetchData(SeuratObjsubset, vars=input$GeneList))
                     output$downloadMatrix <- downloadHandler(
@@ -646,6 +762,76 @@ server <- function(input, output,session) {
                         write.csv(dataMatrixEntire(), file)
                       }
                     )
+                })
+
+                ListenForViolin<- reactive({list(input$AnnotAgainst, input$SplitVln,input$ResolutionDataMining, input$AnnotationDataMining)})
+                observeEvent(ListenForViolin(),{
+                  Violins <- list()
+                  if(input$ResOrAnnot == "Resolution"){
+                    Idents(SeuratObjsubset) <- input$ResolutionDataMining
+                    ident_obj_vln <- input$ResolutionDataMining
+                    
+                    
+                  }else{
+                    Idents(SeuratObjsubset) <- input$AnnotationDataMining
+                    ident_obj_vln <- input$AnnotationDataMining
+                    
+                  }
+                  updateSelectizeInput(session, "labelsToKeep1", choices = levels(SeuratObjsubset) , server =T)
+                  ### Render ViolinPlot + saving them
+                  lapply(seq(10),function(x) # allow to create the 10 graphs
+                  {
+                    if(input$SplitVln == F){
+                      output[[paste0('ViolinPlot',x)]] = renderPlot({vnPlot(SeuratObjsubset,input$GeneList[x])})
+                    }else{
+                      Idents(SeuratObjsubset) <- input$AnnotAgainst
+                      updateSelectizeInput(session, "labelsToKeep2", choices = levels(SeuratObjsubset), server = T)
+                      output[[paste0('ViolinPlot',x)]] = renderPlot({
+                        gene_graph <- violinPlot(SeuratObjsubset,input$GeneList[x],var1 = ident_obj_vln, var2 = input$AnnotAgainst, conditionVar1 = input$labelsToKeep1, conditionVar2=input$labelsToKeep2)
+                        Violins[[x]] <- gene_graph
+                        plot(gene_graph)
+                      })
+                    }
+                  })
+                  observeEvent(input$format, {
+                    if(input$SplitVln == F && input$format== "PNG"){
+                      output$VPdownload <- downloadHandler(
+                        filename = "violinplot.png",
+                        content = function(file){
+                          png(file, width = 1500 , height = 1100,res = 150)
+                          print(VlnPlot(SeuratObjsubset, features = input$GeneList, pt.size = 0))
+                          dev.off()
+                        }
+                      )
+                    }else if (input$SplitVln == F && input$format == "SVG"){
+                      output$VPdownload <- downloadHandler(
+                        filename = "violinplot.svg",
+                        content = function(file){
+                          svg(file, width = 14 , height = 7)
+                          print(VlnPlot(SeuratObjsubset, features = input$GeneList, pt.size = 0))
+                          dev.off()
+                        }
+                      ) 
+                    }else if(input$SplitVln == T && input$format =="PNG"){
+                      output$VPdownload <- downloadHandler(
+                        filename = "violinplot.png",
+                        content = function(file){
+                          png(file, width = 1500 , height = 1100,res = 150)
+                          print(ViolinForDl(SeuratObjsubset, geneList = input$GeneList, var1 = ident_obj_vln, var2 = input$AnnotAgainst, conditionVar1 = input$labelsToKeep1, conditionVar2 = input$labelsToKeep2))
+                          dev.off()
+                        }
+                      )
+                    }else{
+                      output$VPdownload <- downloadHandler(
+                        filename = "violinplot.svg",
+                        content = function(file){
+                          svg(file, width = 14 , height = 7)
+                          print(ViolinForDl(SeuratObjsubset, geneList = input$GeneList, var1 = ident_obj_vln, var2 = input$AnnotAgainst, conditionVar1 = input$labelsToKeep1, conditionVar2 = input$labelsToKeep2))
+                          dev.off()
+                        }
+                      )
+                    }
+                  })
                 })
                 ######################################################
                 ############# Multiple genes data mining #############
@@ -669,9 +855,15 @@ server <- function(input, output,session) {
                     }
                     coord <- Embeddings(SeuratObjsubset[["umap"]])[,1:2]
                     output$dimplotSeurat4page <- renderPlot({
-                        DimPlot(SeuratObjsubset, label = TRUE, label.size = 6)
+                        vizu_UMAP(SeuratObjsubset, var = NULL, dlabel = input$addlabels_MDM)
                     })
-                    
+                    output$downloadUMAP_resolution_page_5<- downloadHandler(
+                      filename="UMAP_resolution_MDM_page.png",
+                      content=function(file){
+                        png(file, width = 1500 , height = 1100,res = 150)
+                        print(vizu_UMAP(SeuratObjsubset,var = NULL, dlabel = input$addlabels_MDM))
+                        dev.off()
+                      })
                     PoolExpTable <- reactive({
                       if(input$ResOrAnnotMult == "Resolution"){
                         out <- aggregate(FetchData(SeuratObjsubset, vars=c(input$GeneListPool)),data.frame(SeuratObjsubset[[input$clusterwatch]]),mean)
@@ -1182,8 +1374,16 @@ server <- function(input, output,session) {
                     DMclusters<- c(levels(SeuratObjsubset), "All")
                     updateSelectizeInput(session,"clusterInfo",choices = DMclusters, server =TRUE)
                     output$Dimplot_cluster <- renderPlot({
-                        DimPlot(SeuratObjsubset,group.by = input$clusterNumber, label = TRUE, label.size = 6)
+                        vizu_UMAP(SeuratObjsubset,var = input$clusterNumber, dlabel = input$addlabels_info)
                     })
+                    output$downloadUMAP_info<- downloadHandler(
+                      filename = "UMAP_info.png",
+                      content = function(file){
+                        png(file, width = 1500 , height = 1100,res = 150)
+                        print(vizu_UMAP(SeuratObjsubset,var = input$clusterNumber, dlabel = input$addlabels_info))
+                        dev.off()
+                      }
+                    ) 
                     toListen <- reactive({list(input$clusterInfo,input$chooseVar2Plot, input$stackedBP, input$FreqOrVal)})
                     observeEvent(toListen(), {
                         Plot2Render <- function(){
@@ -1238,6 +1438,14 @@ server <- function(input, output,session) {
                         output$cluster_percent <- renderPlotly({
                             percentRender()
                         })
+                        output$downloadInformationPlot2 <- downloadHandler(
+                          filename = "Percent_Plot.png",
+                          content = function(file){
+                            png(file, width = 1500 , height = 1100,res = 150)
+                            print(percentRender())
+                            dev.off()
+                          }
+                        )
                         Table2Render <- function(){
                             if(input$clusterInfo == "All"){
                                 as.data.frame(table(c(SeuratObjsubset[[input$chooseVar2Plot]], SeuratObjsubset[[input$clusterNumber]])))
@@ -1279,12 +1487,26 @@ server <- function(input, output,session) {
                     clusterSbt <- levels(SeuratObjsubset)
                     updateSelectizeInput(session,"cluster4Annot",choices = clusterSbt, server = TRUE)
                     output$dimplot_res_annot <- renderPlot({
-                        DimPlot(SeuratObjsubset,group.by = input$res4Annot, label = TRUE, label.size = 6)
+                        vizu_UMAP(SeuratObjsubset,var = input$res4Annot, dlabel = input$labelsAnnot)
                     })
+                    output$downloadUMAP_resolution_annot_page<- downloadHandler(
+                      filename="UMAP_resolution_annot_page.png",
+                      content=function(file){
+                        png(file, width = 1500 , height = 1100,res = 150)
+                        print(vizu_UMAP(SeuratObjsubset,var = input$res4Annot, dlabel = input$labelsAnnot))
+                        dev.off()
+                      })
                 })
                 output$condPlot <- renderPlot({
-                    DimPlot(SeuratObjsubset, group.by = input$Annot2Complete, label = T)
+                    vizu_UMAP(SeuratObjsubset, var = input$Annot2Complete, dlabel = input$labelsconditional)
                 })
+                output$downloadUMAP_Conditional<- downloadHandler(
+                  filename="UMAP_conditional_page.png",
+                  content=function(file){
+                    png(file, width = 1500 , height = 1100,res = 150)
+                    print(vizu_UMAP(SeuratObjsubset,var = input$Annot2Complete, dlabel = input$labelsconditional))
+                    dev.off()
+                  })
                 observeEvent(input$submitAnnot,{
                     if(input$choicesCreateOrComplete == "Create"){
                         if(input$AnnotName == "" | input$clusterName == "" | length(input$cluster4Annot) == 0){
@@ -1312,8 +1534,15 @@ server <- function(input, output,session) {
                             }
                             shinyalert("Done","You have correctly annotated your cluster", type = "success")
                             output$postAnnotation <- renderPlot({
-                                DimPlot(SeuratObjsubset, group.by = input$clusterName, label = T)
+                                vizu_UMAP(SeuratObjsubset, var = input$clusterName, dlabel = input$labelsPostAnnot)
                             })
+                            output$downloadUMAP_post_annotation<- downloadHandler(
+                              filename="UMAP_post_annot.png",
+                              content=function(file){
+                                png(file, width = 1500 , height = 1100,res = 150)
+                                print(vizu_UMAP(SeuratObjsubset,var = input$clusterName, var = input$labelsPostAnnot))
+                                dev.off()
+                              })
                             toremove <- c(grep(names(SeuratObjsubset@meta.data),pattern ="nCount_*", value =T),grep(names(SeuratObjsubset@meta.data),pattern ="nFeature_*", value =T), grep(names(SeuratObjsubset@meta.data),pattern ="snn_res.*", value =T),"percent.mt","S.Score", "G2M.Score")
                             choices <- names(SeuratObjsubset@meta.data)
                             choicesForAnnot <- choices[-which(choices %in% toremove)]
@@ -1322,6 +1551,7 @@ server <- function(input, output,session) {
                             updateSelectizeInput(session,"Annot2Complete",choices = choicesForAnnot)
                             updateSelectizeInput(session,"AnnotationDataMining",choices = choicesForAnnot)
                             updateSelectizeInput(session,"annotationwatch",choices = choicesForAnnot)
+                            updateSelectizeInput(session,"AnnotAgainst", choices = choicesForAnnot)
                             
                         }
                         
@@ -1338,8 +1568,15 @@ server <- function(input, output,session) {
                             }
                         }
                         output$postAnnotation <- renderPlot({
-                            DimPlot(SeuratObjsubset, group.by = input$Annot2Complete, label = T)
+                            vizu_UMAP(SeuratObjsubset, var = input$Annot2Complete, dlabel = ,input$labelsPostAnnot)
                         })
+                        output$downloadUMAP_post_annotation<- downloadHandler(
+                          filename="UMAP_post_annot.png",
+                          content=function(file){
+                            png(file, width = 1500 , height = 1100,res = 150)
+                            print(vizu_UMAP(SeuratObjsubset,var = input$Annot2Complete, input$labelsPostAnnot))
+                            dev.off()
+                          })
                         SeuratObjsubset[[input$Annot2Complete]] <<- f.clusters
                         shinyalert("Done","You have correctly annotated your cluster", type = "success")    
                     }
@@ -1371,33 +1608,69 @@ server <- function(input, output,session) {
                         clusterSbt <- levels(SeuratObjsubset)
                         updateSelectizeInput(session,"subclusterize",choices = clusterSbt, server = TRUE )
                         output$Dimplot_subclustering <- renderPlot({
-                            DimPlot(SeuratObjsubset,group.by = input$clusterResPage7, label = TRUE, label.size = 6)
+                            vizu_UMAP(SeuratObjsubset,var = input$clusterResPage7, dlabel = input$labelsSubset)
                         })
+                        output$downloadUMAP_sbt<- downloadHandler(
+                          filename="UMAP_sbt.png",
+                          content=function(file){
+                            png(file, width = 1500 , height = 1100,res = 150)
+                            print(vizu_UMAP(SeuratObjsubset,var = input$clusterResPage7, input$labelsSubset))
+                            dev.off()
+                          })
                         observeEvent(input$subclusterize,{
                             test <- NULL
-                            test <- colnames(SeuratObjsubset)[which(SeuratObjsubset[[]][input$clusterResPage7] == input$subclusterize[1])]
+                            
                             if(length(input$subclusterize)==length(clusterSbt)){
                                 test <- colnames(SeuratObjsubset)
                                 output$Dimplot_kept <- renderPlot({
-                                    DimPlot(SeuratObjsubset, cells.highlight = test)+scale_color_manual(labels = c("Kept"), values = c("red"))+theme(legend.position= "top", legend.text = element_text(size = 8))
+                                    MakeUMAP_Red(SeuratObjsubset, highliht_cells = test,sizePoint = input$cellsSize, sizeHighlight = input$cellsHighlightSize)
                                 })
+                                output$downloadUMAPcellKept<- downloadHandler(
+                                  filename="UMAP_cell_kept.png",
+                                  content=function(file){
+                                    png(file, width = 1500 , height = 1100,res = 150)
+                                    print(MakeUMAP_Red(SeuratObjsubset, highliht_cells = test,sizePoint = input$cellsSize, sizeHighlight = input$cellsHighlightSize))
+                                    dev.off()
+                                  })
                             }else{
+                              test <- colnames(SeuratObjsubset)[which(SeuratObjsubset[[]][input$clusterResPage7] == input$subclusterize[1])]
                                 output$Dimplot_kept <- renderPlot({
-                                    DimPlot(SeuratObjsubset, cells.highlight = test, order = T)+scale_color_manual(labels = c("Not kept", "Kept"), values = c("gray", "red"))+theme(legend.position= "top", legend.text = element_text(size = 8))
+                                    MakeUMAPhighlight(SeuratObjsubset, highliht_cells = test ,sizePoint = input$cellsSize, sizeHighlight = input$cellsHighlightSize)
                                 })
+                                output$downloadUMAPcellKept<- downloadHandler(
+                                  filename="UMAP_cell_kept.png",
+                                  content=function(file){
+                                    png(file, width = 1500 , height = 1100,res = 150)
+                                    print(MakeUMAPhighlight(SeuratObjsubset, highliht_cells = test,sizePoint = input$cellsSize, sizeHighlight = input$cellsHighlightSize))
+                                    dev.off()
+                                  })
                             }
                             if(length(input$subclusterize) > 1){
                                 if(length(input$subclusterize) == length(clusterSbt)){
                                     test <- colnames(SeuratObjsubset)
                                     output$Dimplot_kept <- renderPlot({
-                                        DimPlot(SeuratObjsubset, cells.highlight = test)+scale_color_manual(labels = c("Kept"), values = c("red"))+theme(legend.position= "top", legend.text = element_text(size = 8))
+                                        MakeUMAP_Red(SeuratObjsubset,highliht_cells = test ,sizePoint = input$cellsSize, sizeHighlight = input$cellsHighlightSize)
                                     })
+                                    output$downloadUMAPcellKept<- downloadHandler(
+                                      filename="UMAP_cell_kept.png",
+                                      content=function(file){
+                                        png(file, width = 1500 , height = 1100,res = 150)
+                                        print(MakeUMAP_Red(SeuratObjsubset, highliht_cells = test,sizePoint = input$cellsSize, sizeHighlight = input$cellsHighlightSize))
+                                        dev.off()
+                                      })
                                 }else{
                                     for(i in 2:length(input$subclusterize)){
                                         test <- c(test, colnames(SeuratObjsubset)[which(SeuratObjsubset[[]][input$clusterResPage7] == input$subclusterize[i])])
                                         output$Dimplot_kept <- renderPlot({
-                                            DimPlot(SeuratObjsubset, cells.highlight = test)+scale_color_manual(labels = c("Not kept", "Kept"), values = c("gray", "red"))+theme(legend.position= "top", legend.text = element_text(size = 8))
+                                            MakeUMAPhighlight(SeuratObjsubset, highliht_cells = test,sizePoint = input$cellsSize, sizeHighlight = input$cellsHighlightSize)
                                         })
+                                        output$downloadUMAPcellKept<- downloadHandler(
+                                          filename="UMAP_cell_kept.png",
+                                          content=function(file){
+                                            png(file, width = 1500 , height = 1100,res = 150)
+                                            print(MakeUMAPhighlight(SeuratObjsubset, highliht_cells = test,sizePoint = input$cellsSize, sizeHighlight = input$cellsHighlightSize))
+                                            dev.off()
+                                          })
                                     }
                                 }  
                             }
@@ -1409,33 +1682,68 @@ server <- function(input, output,session) {
                         annotSbt <- levels(SeuratObjsubset)
                         updateSelectInput(session, "subannot", choices = annotSbt)
                         output$Dimplot_subclustering <- renderPlot({
-                            DimPlot(SeuratObjsubset,group.by = input$whichAnnot, label = TRUE, label.size = 6)
+                            vizu_UMAP(SeuratObjsubset,var = input$whichAnnot, dlabel = input$labelsSubset)
                         })
+                        output$downloadUMAP_sbt<- downloadHandler(
+                          filename="UMAP_sbt.png",
+                          content=function(file){
+                            png(file, width = 1500 , height = 1100,res = 150)
+                            print(vizu_UMAP(SeuratObjsubset,var = input$whichAnnot, input$labelsSubset))
+                            dev.off()
+                          })
                         observeEvent(input$subannot,{
                             test <- NULL
-                            test <- colnames(SeuratObjsubset)[which(SeuratObjsubset[[]][input$whichAnnot] == input$subannot[1])]
                             if(length(input$subannot) == length(annotSbt)){
                                 test <- colnames(SeuratObjsubset)
                                 output$Dimplot_kept <- renderPlot({
-                                    DimPlot(SeuratObjsubset, cells.highlight = test)+scale_color_manual(labels = c("Kept"), values = c("red"))+theme(legend.position= "top", legend.text = element_text(size = 8))
+                                    MakeUMAP_Red(SeuratObjsubset, highliht_cells = test,sizePoint = input$cellsSize, sizeHighlight = input$cellsHighlightSize)
                                 })
+                                output$downloadUMAPcellKept<- downloadHandler(
+                                  filename="UMAP_cell_kept.png",
+                                  content=function(file){
+                                    png(file, width = 1500 , height = 1100,res = 150)
+                                    print(MakeUMAP_Red(SeuratObjsubset, highliht_cells = test,sizePoint = input$cellsSize, sizeHighlight = input$cellsHighlightSize))
+                                    dev.off()
+                                  })
                             }else{
+                              test <- colnames(SeuratObjsubset)[which(SeuratObjsubset[[]][input$whichAnnot] == input$subannot[1])]
                                 output$Dimplot_kept <- renderPlot({
-                                    DimPlot(SeuratObjsubset, cells.highlight = test)+scale_color_manual(labels = c("Not kept", "Kept"), values = c("gray", "red"))+theme(legend.position= "top", legend.text = element_text(size = 8))
-                                }) 
+                                    MakeUMAPhighlight(SeuratObjsubset, highliht_cells = test,sizePoint = input$cellsSize, sizeHighlight = input$cellsHighlightSize)
+                                })
+                                output$downloadUMAPcellKept<- downloadHandler(
+                                  filename="UMAP_cell_kept.png",
+                                  content=function(file){
+                                    png(file, width = 1500 , height = 1100,res = 150)
+                                    print(MakeUMAPhighlight(SeuratObjsubset, highliht_cells = test,sizePoint = input$cellsSize, sizeHighlight = input$cellsHighlightSize))
+                                    dev.off()
+                                  })
                             }
                             if(length(input$subannot) > 1){
                                 if(length(input$subannot) == length(annotSbt)){
                                     test <- colnames(SeuratObjsubset)
                                     output$Dimplot_kept <- renderPlot({
-                                        DimPlot(SeuratObjsubset, cells.highlight = test)+scale_color_manual(labels = c("Kept"), values = c("red"))+theme(legend.position= "top", legend.text = element_text(size = 8))
+                                        MakeUMAP_Red(SeuratObjsubset, highliht_cells = test,sizePoint = input$cellsSize, sizeHighlight = input$cellsHighlightSize)
                                     })
+                                    output$downloadUMAPcellKept<- downloadHandler(
+                                      filename="UMAP_cell_kept.png",
+                                      content=function(file){
+                                        png(file, width = 1500 , height = 1100,res = 150)
+                                        print(MakeUMAP_Red(SeuratObjsubset, highliht_cells = test,sizePoint = input$cellsSize, sizeHighlight = input$cellsHighlightSize))
+                                        dev.off()
+                                      })
                                 }else{
                                     for(i in 2:length(input$subannot)){
                                         test <- c(test, colnames(SeuratObjsubset)[which(SeuratObjsubset[[]][input$whichAnnot] == input$subannot[i])])
                                         output$Dimplot_kept <- renderPlot({
-                                            DimPlot(SeuratObjsubset, cells.highlight = test)+scale_color_manual(labels = c("Not kept", "Kept"), values = c("gray", "red"))+theme(legend.position= "top", legend.text = element_text(size = 8))
+                                            MakeUMAPhighlight(SeuratObjsubset, highliht_cells = test,sizePoint = input$cellsSize, sizeHighlight = input$cellsHighlightSize)
                                         })
+                                        output$downloadUMAPcellKept<- downloadHandler(
+                                          filename="UMAP_cell_kept.png",
+                                          content=function(file){
+                                            png(file, width = 1500 , height = 1100,res = 150)
+                                            print(MakeUMAPhighlight(SeuratObjsubset, highliht_cells = test,sizePoint = input$cellsSize, sizeHighlight = input$cellsHighlightSize))
+                                            dev.off()
+                                          })
                                     }
                                 }  
                             }
@@ -1467,8 +1775,15 @@ server <- function(input, output,session) {
                         
                     })
                     output$dimplot_aftersbt <- renderPlot({
-                        DimPlot(subsetSeuratObj)
+                        vizu_UMAP(subsetSeuratObj, dlabel = input$labelsAfterSubset)
                     })
+                    output$downloadUMAPaftersbt<- downloadHandler(
+                      filename="UMAP_After_sbt.png",
+                      content=function(file){
+                        png(file, width = 1500 , height = 1100,res = 150)
+                        print(vizu_UMAP(subsetSeuratObj, dlabel = input$labelsAfterSubset))
+                        dev.off()
+                      })
                     shinyjs::enable("dosubcluster")
                     shinyjs::show("NameObject")
                     shinyjs::show("downloadSubRds")
@@ -1544,30 +1859,81 @@ server <- function(input, output,session) {
             available_metadata <- colnames(seuratObj@meta.data)
             available_metadata <- available_metadata[-which(available_metadata %in% c("nCount_RNA","nFeature_RNA","percent.mt","S.Score", "G2M.Score","nCount_SCT", "nFeature_SCT"))]
             updateSelectizeInput(session, "InfoToPlot", choices= available_metadata, server=TRUE)
+            
+            ## Violin plot on data
             output$featureQC <- renderPlot({
-                VlnPlot(seuratObj, features = c("nFeature_RNA","nCount_RNA","percent.mt"), ncol = 3, pt.size = 0) 
+                makeVlnGreatAgain(seuratObj,  grouping = "orig.ident",var = c("nFeature_RNA","nCount_RNA","percent.mt"), col = 3) 
             })
+            output$downloadVln<- downloadHandler(
+              filename="Violin_QC.png",
+              content=function(file){
+                png(file, width = 1500 , height = 1100,res = 150)
+                print(makeVlnGreatAgain(seuratObj, grouping = "orig.ident", var=c("nFeature_RNA","nCount_RNA","percent.mt"), col = 3))
+                dev.off()
+              })
+            
+            ## QC resolution
             output$plotClusterQC <- renderPlot({
-                DimPlot(seuratObj)
+                vizu_UMAP(seuratObj,var= NULL,dlabel = input$addlabels_res)
             })
+            output$downloadUMAP_resolution_qc<- downloadHandler(
+              filename="UMAP_Cluster_QC.png",
+              content=function(file){
+                png(file, width = 1500 , height = 1100,res = 150)
+                print(vizu_UMAP(seuratObj,var=NULL, dlabel = input$addlabels_res))
+                dev.off()
+              })
+            
+            ## cell cycle
             output$cellcycleQC <- renderPlot({
                 validate(
                     need(try(seuratObj[["Phase"]]!=""),message = "No phase available in this seurat object")
                 )
-                DimPlot(seuratObj, group.by = "Phase")
+                vizu_UMAP(seuratObj,var = "Phase", dlabel = input$showlabelccQC)
             })
+            output$downloadUMAP_CC<- downloadHandler(
+              filename="UMAP_Cell_cycle.png",
+              content=function(file){
+                png(file, width = 1500 , height = 1100,res = 150)
+                print(vizu_UMAP(seuratObj,var="Phase", dlabel = input$showlabelccQC))
+                dev.off()
+              })
+            
+            ## Hist nb cell by dataset
             output$nbcells_by_datasetsQC <- renderPlot({
-                cells_by_dt <- data.frame(table(seuratObj$orig.ident))
-                ggplot(cells_by_dt,aes(Var1,Freq, fill=Var1))+geom_bar(stat = "identity")+ggtitle("Number of cells by datasets")+geom_text(aes(label=Freq), position=position_dodge(width=0.9), vjust=-0.25)
+                nbCellsbydt(seuratObj)
             })
+            output$downloadHistNbCells<- downloadHandler(
+              filename="Hist_nb_cells_dt.png",
+              content=function(file){
+                png(file, width = 1500 , height = 1100,res = 150)
+                print(nbCellsbydt(seuratObj))
+                dev.off()
+              })
+            
+            ## Nb gene by cell
             output$geneExpByCellQC <- renderPlot({
-                coord_Umap <- Embeddings(seuratObj[["umap"]])[,1:2]
-                expressed_cells <- cbind.data.frame(counts=colSums(seuratObj@assays$RNA@data > 0),coord_Umap)
-                ggplot(expressed_cells, aes(UMAP_1,UMAP_2, color = counts))+geom_point(shape =20, size=0.25)+scale_color_gradient(low="lightgrey", high="blue")+theme_classic()+ggtitle("Number of expressed genes by cells")
+                UmapNbGenesCell(seuratObj)
             })
+            output$downloadUMAP_gene_by_cell<- downloadHandler(
+              filename="UMAP_Nb_gene_by_cell.png",
+              content=function(file){
+                png(file, width = 1500 , height = 1100,res = 150)
+                print(UmapNbGenesCell(seuratObj))
+                dev.off()
+              })
+            
+            ## choice plot 
             output$plotChoice <- renderPlot({
-                DimPlot(seuratObj, group.by = input$InfoToPlot)
+                vizu_UMAP(seuratObj,var =input$InfoToPlot,  dlabel = input$addlabels_choice)
             })
+            output$downloadUMAP_choice<- downloadHandler(
+              filename="UMAP_choice.png",
+              content=function(file){
+                png(file, width = 1500 , height = 1100,res = 150)
+                print(vizu_UMAP(seuratObj,var=input$InfoToPlot,  dlabel = input$addlabels_choice))
+                dev.off()
+              })
             #############################
             ##### Cluster Tree page #####
             #############################
@@ -1579,9 +1945,19 @@ server <- function(input, output,session) {
                 )
                 clustree(seuratObj,prefix = paste0(seuratObj@active.assay,"_snn_res."))+theme(legend.position = "bottom")
             })
+            
+            #Umap tree page
             output$DimplotTreePage <- renderPlot({
-                DimPlot(seuratObj, group.by = input$resolution_TreePage, label = TRUE, label.size = 0.6)
+                vizu_UMAP(seuratObj, var = input$resolution_TreePage, dlabel = input$addlabels_tree)
             })
+            output$downloadUMAP_Tree_page<- downloadHandler(
+              filename="UMAP_From_tree_page.png",
+              content=function(file){
+                png(file, width = 1500 , height = 1100,res = 150)
+                print(vizu_UMAP(seuratObj,var=input$resolution_TreePage, dlabel = input$addlabels_tree))
+                dev.off()
+            })
+            
             output$nbCellsByClust_Tree_Page <- DT::renderDataTable({
                 count_by_cluster <- data.frame(table(seuratObj[[input$resolution_TreePage]]))
                 colnames(count_by_cluster) <- c("Cluster",'Number of cells')
@@ -1599,8 +1975,17 @@ server <- function(input, output,session) {
                 updateSelectizeInput(session,"Cluster1",choices = Cluster_list, server =TRUE)
                 cluster_All <- c(Cluster_list,"All")
                 updateSelectizeInput(session,"Cluster2", choices = cluster_All ,server = TRUE)
+                
+                ### Umap differential expression
                 output$DimplotMarkers <- renderPlot({
-                    DimPlot(seuratObj,group.by = input$resolutionDE, label = TRUE, label.size = 6)
+                    vizu_UMAP(seuratObj,var = input$resolutionDE, dlabel = input$addlabels_DE)
+                })
+                output$downloadUMAP_DE_page<- downloadHandler(
+                  filename="UMAP_DE_page.png",
+                  content=function(file){
+                    png(file, width = 1500 , height = 1100,res = 150)
+                    print(vizu_UMAP(seuratObj,var=input$resolution_TreePage, dlabel = input$addlabels_DE))
+                    dev.off()
                 })
                 
             })
@@ -1651,79 +2036,45 @@ server <- function(input, output,session) {
             varAvail <- names(seuratObj@meta.data)
             varAvail <- varAvail[-which(varAvail %in% toremove)]
             updateSelectizeInput(session, "AnnotationDataMining", choices = varAvail, server = TRUE)
+            updateSelectizeInput(session, "AnnotAgainst", choices = varAvail, server = TRUE)
             gene <- seuratObj@assays$RNA@counts@Dimnames[[1]]
             updateSelectizeInput(session,"GeneList", choices=gene, server = TRUE)
-            toListen <- reactive({list(input$ResolutionDataMining, input$AnnotationDataMining, input$keepscale, input$format, input$ResOrAnnot)})
+            toListen <- reactive({list(input$ResolutionDataMining, input$AnnotationDataMining, input$format)})
             observeEvent(toListen(),{
-                if(input$format =="SVG"){
-                    shinyalert("warning", "SVG format is a good choice of graph for your paper because it can be easily formated but is heavier than PNG", "warning")
-                }
-                if(input$ResOrAnnot == "Resolution"){
-                  Idents(seuratObj) <- input$ResolutionDataMining 
-                }else{
-                  Idents(seuratObj) <- input$AnnotationDataMining
-                }
-                FP <- function(){
-                    validate(
-                        need(input$GeneList != "","Select at least one gene")
-                    )
-                    if(input$keepscale == "No"){
-                        val = "feature"
-                    }else{
-                        val = "all"
-                    }
-                    FeaturePlot(seuratObj, features = input$GeneList, keep.scale = val)
-                }
-                output$FeaturePlotMultGenes <- renderPlot({
-                    FP()    
-                })
-                if(input$format =="PNG"){
-                    output$downloadfeatureplot<- downloadHandler(
-                        filename="featureplot.png",
-                        content=function(file){
-                            png(file, width = 1500 , height = 1100,res = 150)
-                            print(FP())
-                            dev.off()
-                        })
-                }else{
-                    output$downloadfeatureplot<- downloadHandler(
-                        filename="featureplot.svg",
-                        content=function(file){
-                            svg(file, width = 14 , height = 7)
-                            print(FP())
-                            dev.off()
-                        })
-                }
+              if(input$format =="SVG"){
+                shinyalert("warning", "SVG format is a good choice of graph for your paper because it can be easily formated but is heavier than PNG", "warning")
+              }
+              if(input$ResOrAnnot == "Resolution"){
+                Idents(seuratObj) <- input$ResolutionDataMining
+                ident_obj <- input$ResolutionDataMining
                 
-                #Violin plot generator
-                vnPlot <- function(){
-                    validate(
-                        need(input$GeneList != "","Choose at least one gene and it will show you the violin plot of this gene in function of the different clusters, you can choose 10 different gene ids to plot")
-                    )
-                    VlnPlot(seuratObj, features = input$GeneList, pt.size = 0)
-                }
-                output$ViolinPlot <- renderPlot({
-                    vnPlot()
+                
+              }else{
+                Idents(seuratObj) <- input$AnnotationDataMining
+                ident_obj <- input$AnnotationDataMining
+                
+              }
+                
+                
+                ## Create and save the featurePlot
+                lapply(seq(10),function(x) # allow to create the 10 graphd
+                {
+                  output[[paste0('FeaturePlotMultGenes',x)]] = renderPlot({FP(seuratObj,input$GeneList[x])})
                 })
-                if(input$format =="PNG"){
-                    output$VPdownload <- downloadHandler(
-                        filename = "violinplot.png",
-                        content = function(file){
-                            png(file, width = 1500 , height = 1100,res = 150)
-                            print(vnPlot())
-                            dev.off()
-                        }
-                    )
-                }else{
-                    output$VPdownload <- downloadHandler(
-                        filename = "violinplot.svg",
-                        content = function(file){
-                            svg(file, width = 14 , height = 7)
-                            print(vnPlot())
-                            dev.off()
-                        }
-                    )
-                }
+                lapply(seq(length(input$GeneList)), function(x){
+                  output$downloadfeatureplot<- downloadHandler(
+                    filename="featureplot.png",
+                    content=function(file){
+                      png(file, width = 1500 , height = 1100,res = 150)
+                      print(FeaturePlot(seuratObj, features = input$GeneList))
+                      dev.off()
+                    })
+                })
+                
+                
+                
+                
+                
                 #Heatmap Generator 
                 Heatmap <- function(){
                     validate(
@@ -1781,14 +2132,25 @@ server <- function(input, output,session) {
                             dev.off()
                         }
                     ) 
-                } 
+                }
+                
                 output$clusterOutput<- renderPlot({
-                    DimPlot(seuratObj, label = TRUE, label.size = 6)
+                    vizu_UMAP(seuratObj, var = ident_obj, dlabel = input$addlabels_ODM)
                 })
+                output$downloadUMAP_Cluster_resolution<- downloadHandler(
+                  filename="UMAP_cluster_or_annot.png",
+                  content=function(file){
+                    png(file, width = 1500 , height = 1100,res = 150)
+                    print(vizu_UMAP(seuratObj,var=ident_obj, dlabel = input$addlabels_ODM))
+                    dev.off()
+                  })
+                
                 if(input$ResOrAnnot == "Resolution"){
                   dataTableCat <- reactive(aggregate(FetchData(seuratObj, vars=input$GeneList),data.frame(seuratObj[[input$ResolutionDataMining]]),mean))
+                  dataMatrixEntire <- reactive(cbind(FetchData(seuratObj, vars=input$GeneList),seuratObj[[input$ResolutionDataMiningu]]))                
                 }else{
                   dataTableCat <- reactive(aggregate(FetchData(seuratObj, vars=input$GeneList),data.frame(seuratObj[[input$AnnotationDataMining]]),mean))
+                  dataMatrixEntire <- reactive(cbind(FetchData(seuratObj, vars=input$GeneList),seuratObj[[input$AnnotationDataMining]]))
                 }
                 output$geneExp <- DT::renderDataTable({
                   validate(
@@ -1804,7 +2166,7 @@ server <- function(input, output,session) {
                     write.csv(dataTableCat(),file)
                   }
                 )
-                dataMatrixEntire <- reactive(FetchData(seuratObj, vars=input$GeneList))
+                #dataMatrixEntire <- reactive(FetchData(seuratObj, vars=input$GeneList))
                 output$downloadMatrix <- downloadHandler(
                   filename = function(){
                     paste('Matrix_',Sys.Date(),'.csv', sep ='')
@@ -1813,6 +2175,77 @@ server <- function(input, output,session) {
                     write.csv(dataMatrixEntire(), file)
                   }
                 )
+            })
+            
+           
+            ListenForViolin<- reactive({list(input$AnnotAgainst, input$SplitVln,input$ResolutionDataMining, input$AnnotationDataMining)})
+            observeEvent(ListenForViolin(),{
+              Violins <- list()
+              if(input$ResOrAnnot == "Resolution"){
+                Idents(seuratObj) <- input$ResolutionDataMining
+                ident_obj_vln <- input$ResolutionDataMining
+                
+                
+              }else{
+                Idents(seuratObj) <- input$AnnotationDataMining
+                ident_obj_vln <- input$AnnotationDataMining
+                
+              }
+              updateSelectizeInput(session, "labelsToKeep1", choices = levels(seuratObj) , server =T)
+              ### Render ViolinPlot + saving them
+              lapply(seq(10),function(x) # allow to create the 10 graphs
+              {
+                if(input$SplitVln == F){
+                  output[[paste0('ViolinPlot',x)]] = renderPlot({vnPlot(seuratObj,input$GeneList[x])})
+                }else{
+                  Idents(seuratObj) <- input$AnnotAgainst
+                  updateSelectizeInput(session, "labelsToKeep2", choices = levels(seuratObj), server = T)
+                  output[[paste0('ViolinPlot',x)]] = renderPlot({
+                    gene_graph <- violinPlot(seuratObj,input$GeneList[x],var1 = ident_obj_vln, var2 = input$AnnotAgainst, conditionVar1 = input$labelsToKeep1, conditionVar2=input$labelsToKeep2)
+                    Violins[[x]] <- gene_graph
+                    plot(gene_graph)
+                  })
+                }
+              })
+              observeEvent(input$format, {
+                if(input$SplitVln == F && input$format== "PNG"){
+                  output$VPdownload <- downloadHandler(
+                    filename = "violinplot.png",
+                    content = function(file){
+                      png(file, width = 1500 , height = 1100,res = 150)
+                      print(VlnPlot(seuratObj, features = input$GeneList, pt.size = 0))
+                      dev.off()
+                    }
+                  )
+                }else if (input$SplitVln == F && input$format == "SVG"){
+                  output$VPdownload <- downloadHandler(
+                    filename = "violinplot.svg",
+                    content = function(file){
+                      svg(file, width = 14 , height = 7)
+                      print(VlnPlot(seuratObj, features = input$GeneList, pt.size = 0))
+                      dev.off()
+                    }
+                  ) 
+                }else if(input$SplitVln == T && input$format =="PNG"){
+                  output$VPdownload <- downloadHandler(
+                    filename = "violinplot.png",
+                    content = function(file){
+                      png(file, width = 1500 , height = 1100,res = 150)
+                      print(ViolinForDl(seuratObj, geneList = input$GeneList, var1 = ident_obj_vln, var2 = input$AnnotAgainst, conditionVar1 = input$labelsToKeep1, conditionVar2 = input$labelsToKeep2))
+                      dev.off()
+                    }
+                  )
+                }else{
+                  output$VPdownload <- downloadHandler(
+                    filename = "violinplot.svg",
+                    content = function(file){
+                      svg(file, width = 14 , height = 7)
+                      print(ViolinForDl(seuratObj, geneList = input$GeneList, var1 = ident_obj_vln, var2 = input$AnnotAgainst, conditionVar1 = input$labelsToKeep1, conditionVar2 = input$labelsToKeep2))
+                      dev.off()
+                    }
+                  )
+                }
+              })
             })
         
             ######################################################
@@ -1833,13 +2266,24 @@ server <- function(input, output,session) {
               }
               if(input$ResOrAnnotMult == "Resolution"){
                 Idents(seuratObj) <- input$clusterwatch
+                ident_obj_mult <- input$clusterwatch
               }else{
                 Idents(seuratObj) <- input$annotationwatch
+                ident_obj_mult <- input$annotationwatch
               }
               coord <- Embeddings(seuratObj[["umap"]])[,1:2]
+              
+              # print and save umap resolution
               output$dimplotSeurat4page <- renderPlot({
-                  DimPlot(seuratObj, label = TRUE, label.size = 6)
+                  vizu_UMAP(seuratObj, var = ident_obj_mult, dlabel = input$addlabels_MDM)
               })
+              output$downloadUMAP_resolution_page_5<- downloadHandler(
+                filename="UMAP_resolution_p5.png",
+                content=function(file){
+                  png(file, width = 1500 , height = 1100,res = 150)
+                  print(vizu_UMAP(seuratObj,var=ident_obj_mult, dlabel = input$addlabels_MDM))
+                  dev.off()
+                })
               
               poolexpTable <- reactive({
                 if(input$ResOrAnnotMult == "Resolution"){
@@ -2356,8 +2800,16 @@ server <- function(input, output,session) {
                 DMclusters<- c(levels(seuratObj), "All")
                 updateSelectizeInput(session,"clusterInfo",choices = DMclusters, server =TRUE)
                 output$Dimplot_cluster <- renderPlot({
-                    DimPlot(seuratObj,group.by = input$clusterNumber, label = TRUE, label.size = 6)
+                    vizu_UMAP(seuratObj,var = input$clusterNumber, dlabel = input$addlabels_info)
                 })
+                output$downloadUMAP_info<- downloadHandler(
+                  filename = "UMAP_info.png",
+                  content = function(file){
+                    png(file, width = 1500 , height = 1100,res = 150)
+                    print(vizu_UMAP(seuratObj,var = input$clusterNumber, dlabel = input$addlabels_info))
+                    dev.off()
+                  }
+                )
                 toListen <- reactive({list(input$clusterInfo,input$chooseVar2Plot, input$stackedBP, input$FreqOrVal)})
                 observeEvent(toListen(), {
                     Plot2Render <- function(){
@@ -2412,6 +2864,14 @@ server <- function(input, output,session) {
                         g <- percentRender()
                         ggplotly(g)
                     })
+                    output$downloadInformationPlot2 <- downloadHandler(
+                      filename = "Percent_Plot.png",
+                      content = function(file){
+                        png(file, width = 1500 , height = 1100,res = 150)
+                        print(percentRender())
+                        dev.off()
+                      }
+                    )
                     Table2Render <- function(){
                         if(input$clusterInfo == "All"){
                             as.data.frame(table(c(seuratObj[[input$chooseVar2Plot]], seuratObj[[input$clusterNumber]])))
@@ -2453,12 +2913,30 @@ server <- function(input, output,session) {
                 clusterSbt <- levels(seuratObj)
                 updateSelectizeInput(session,"cluster4Annot",choices = clusterSbt, server = TRUE)
                 output$dimplot_res_annot <- renderPlot({
-                    DimPlot(seuratObj,group.by = input$res4Annot, label = T, label.size = 6)
+                    vizu_UMAP(seuratObj,var = input$res4Annot, dlabel = input$labelsAnnot)
                 })
+                output$downloadUMAP_resolution_annot_page<- downloadHandler(
+                  filename="UMAP_resolution_annot_page.png",
+                  content=function(file){
+                    png(file, width = 1500 , height = 1100,res = 150)
+                    print(vizu_UMAP(seuratObj,var=input$res4Annot, dlabel = input$labelsAnnot))
+                    dev.off()
+                  })
+                
             })
+            
+            ##render plot displaying variable of interest when use update instead of create
             output$condPlot <- renderPlot({
-                DimPlot(seuratObj, group.by = input$Annot2Complete, label = T)
+                vizu_UMAP(seuratObj, var = input$Annot2Complete, dlabel = input$labelsconditional)
             })
+            output$downloadUMAP_Conditional<- downloadHandler(
+              filename="UMAP_conditional.png",
+              content=function(file){
+                png(file, width = 1500 , height = 1100,res = 150)
+                print(vizu_UMAP(seuratObj,var=input$Annot2Complete, dlabel = input$labelsconditional))
+                dev.off()
+              })
+            
             observeEvent(input$submitAnnot,{
                 if(input$choicesCreateOrComplete =="Create"){
                     if(input$AnnotName == "" | input$clusterName == "" | length(input$cluster4Annot) == 0){
@@ -2486,16 +2964,24 @@ server <- function(input, output,session) {
                         }
                         shinyalert("Done","You have correctly annotated your cluster", type = "success")
                         output$postAnnotation <- renderPlot({
-                            DimPlot(seuratObj, group.by = input$clusterName, label = T)
+                            vizu_UMAP(seuratObj, var = input$clusterName, dlabel = T)
                         }) 
+                        output$downloadUMAP_post_annotation<- downloadHandler(
+                          filename="UMAP_post_annot.png",
+                          content=function(file){
+                            png(file, width = 1500 , height = 1100,res = 150)
+                            print(vizu_UMAP(seuratObj,var=input$Annot2Complete, dlabel = T))
+                            dev.off()
+                          })
                         toremove <- c(grep(names(seuratObj@meta.data),pattern ="nCount_*", value =T),grep(names(seuratObj@meta.data),pattern ="nFeature_*", value =T),grep(names(seuratObj@meta.data),pattern ="snn_res.*", value =T),"percent.mt","S.Score", "G2M.Score")
-                        choices <- colnames(seuratObj@meta.data)
+                        choices <- names(seuratObj@meta.data)
                         choices_annot <- choices[-which(choices %in% toremove )]
                         updateSelectizeInput(session,"chooseVar2Plot", choices=choices)
                         updateSelectizeInput(session,"whichAnnot", choices=choices_annot)
                         updateSelectizeInput(session,"Annot2Complete", choices =choices_annot)
                         updateSelectizeInput(session, "AnnotationDataMining", choices = choices_annot)
                         updateSelectizeInput(session,"annotationwatch",choices = choices_annot)
+                        updateSelectizeInput(session,"AnnotAgainst", choices = choices_annot)
                         
                     }
                 }else{
@@ -2512,10 +2998,18 @@ server <- function(input, output,session) {
                         seuratObj[[input$Annot2Complete]] <<- f.clusters
                     }
                     output$postAnnotation <- renderPlot({
-                        DimPlot(seuratObj, group.by = input$Annot2Complete, label = T)
+                        vizu_UMAP(seuratObj, var = input$Annot2Complete, dlabel = input$labelsPostAnnot)
                     })
-                    shinyalert("Done","You have correctly annotated your cluster", type = "success")
                     
+                    
+                    shinyalert("Done","You have correctly annotated your cluster", type = "success")
+                    output$downloadUMAP_post_annotation<- downloadHandler(
+                      filename="UMAP_post_annot.png",
+                      content=function(file){
+                        png(file, width = 1500 , height = 1100,res = 150)
+                        print(vizu_UMAP(seuratObj,var=input$Annot2Complete, dlabel = input$labelsPostAnnot))
+                        dev.off()
+                      })
                 }
                 
             })
@@ -2545,77 +3039,147 @@ server <- function(input, output,session) {
                     clusterSbt <- levels(seuratObj)
                     updateSelectizeInput(session,"subclusterize",choices = clusterSbt, server = TRUE )
                     output$Dimplot_subclustering <- renderPlot({
-                        DimPlot(seuratObj,group.by = input$clusterResPage7, label=TRUE, label.size = 6)
+                        vizu_UMAP(seuratObj,var = input$clusterResPage7, dlabel=input$labelsSubset)
                     })
+                    output$downloadUMAP_sbt<- downloadHandler(
+                      filename="UMAP_resolution_for_sbt.png",
+                      content=function(file){
+                        png(file, width = 1500 , height = 1100,res = 150)
+                        print(vizu_UMAP(seuratObj,var=input$clusterResPage7, dlabel = input$labelsSubset))
+                        dev.off()
+                      })
                     observeEvent(input$subclusterize,{
                         test <- NULL
                         if(length(input$subclusterize) == length(clusterSbt)){
                             test <- colnames(seuratObj)
                             output$Dimplot_kept <- renderPlot({
-                                DimPlot(seuratObj, cells.highlight = test, order = T)+scale_color_manual(labels = c("Kept"), values = c("red"))+theme(legend.position= "top", legend.text = element_text(size = 8))
+                              MakeUMAP_Red(seuratObj, highliht_cells = test,sizePoint = input$cellsSize, sizeHighlight = input$cellsHighlightSize)
+                            })
+                            output$downloadUMAPcellKept<- downloadHandler(
+                              filename="UMAP_cell_kept.png",
+                              content=function(file){
+                                png(file, width = 1500 , height = 1100,res = 150)
+                                print(MakeUMAP_Red(seuratObj,test,sizePoint = input$cellsSize, sizeHighlight = input$cellsHighlightSize))
+                                dev.off()
                             })
                         }else{
                             test <- colnames(seuratObj)[which(seuratObj[[]][input$clusterResPage7] == input$subclusterize[1])]
                             output$Dimplot_kept <- renderPlot({
-                                DimPlot(seuratObj, cells.highlight = test, order = T)+scale_color_manual(labels = c("Not kept", "Kept"), values = c("gray", "red"))+theme(legend.position= "top", legend.text = element_text(size = 8))
-                            }) 
+                                MakeUMAPhighlight(seuratObj, highliht_cells = test,sizePoint = input$cellsSize, sizeHighlight = input$cellsHighlightSize)
+                            })
+                            output$downloadUMAPcellKept<- downloadHandler(
+                              filename="UMAP_cell_kept.png",
+                              content=function(file){
+                                png(file, width = 1500 , height = 1100,res = 150)
+                                print(MakeUMAPhighlight(seuratObj,test,sizePoint = input$cellsSize, sizeHighlight = input$cellsHighlightSize))
+                                dev.off()
+                              })
                         }
                         if(length(input$subclusterize) > 1){
                             if(length(input$subclusterize) == length(clusterSbt)){
                                 test <- colnames(seuratObj)
                                 output$Dimplot_kept <- renderPlot({
-                                    DimPlot(seuratObj, cells.highlight = test, order = T)+scale_color_manual(labels = c("Kept"), values = c("red"))+theme(legend.position= "top", legend.text = element_text(size = 8))
+                                    MakeUMAP_Red(seuratObj, highliht_cells = test,sizePoint = input$cellsSize, sizeHighlight = input$cellsHighlightSize)
+                                })
+                                output$downloadUMAPcellKept<- downloadHandler(
+                                  filename="UMAP_cell_kept.png",
+                                  content=function(file){
+                                    png(file, width = 1500 , height = 1100,res = 150)
+                                    print(MakeUMAP_Red(seuratObj,test,sizePoint = input$cellsSize, sizeHighlight = input$cellsHighlightSize))
+                                    dev.off()
                                 })
                             }
                             else{
                                 for(i in 2:length(input$subclusterize)){
                                     test <- c(test, colnames(seuratObj)[which(seuratObj[[]][input$clusterResPage7] == input$subclusterize[i])])
                                     output$Dimplot_kept <- renderPlot({
-                                        DimPlot(seuratObj, cells.highlight = test, order = T)+scale_color_manual(labels = c("Not kept", "Kept"), values = c("gray", "red"))+theme(legend.position= "top", legend.text = element_text(size = 8))
+                                      MakeUMAPhighlight(seuratObj, highliht_cells =  test,sizePoint = input$cellsSize, sizeHighlight = input$cellsHighlightSize)
                                     })
-                                } 
+                                    output$downloadUMAPcellKept<- downloadHandler(
+                                      filename="UMAP_cell_kept.png",
+                                      content=function(file){
+                                        png(file, width = 1500 , height = 1100,res = 150)
+                                        print(MakeUMAPhighlight(seuratObj,test,sizePoint = input$cellsSize, sizeHighlight = input$cellsHighlightSize))
+                                        dev.off()
+                                    })
+                                }
                             }
-                            
                         }
-                        subsetSeuratObj <<- subset(seuratObj, cells = test)
                         
+                        subsetSeuratObj <<- subset(seuratObj, cells = test)
                     })
                 }else{
                     Idents(seuratObj) <- input$whichAnnot
                     annotSbt <- levels(seuratObj)
                     updateSelectInput(session, "subannot", choices = annotSbt)
                     output$Dimplot_subclustering <- renderPlot({
-                        DimPlot(seuratObj,group.by = input$whichAnnot, label = TRUE, label.size = 6)
+                        vizu_UMAP(seuratObj,var = input$whichAnnot, dlabel = input$labelsSubset)
                     })
+                    output$downloadUMAP_sbt<- downloadHandler(
+                      filename="UMAP_resolution_for_sbt.png",
+                      content=function(file){
+                        png(file, width = 1500 , height = 1100,res = 150)
+                        print(vizu_UMAP(seuratObj,var=input$whichAnnot, dlabel = input$labelsSubset))
+                        dev.off()
+                      })
                     observeEvent(input$subannot,{
                         test <- NULL
                         if(length(input$subannot) == length(annotSbt)){
                             test <- colnames(seuratObj)
                             output$Dimplot_kept <- renderPlot({
-                                DimPlot(seuratObj, cells.highlight = test, order = T)+scale_color_manual(labels = c("Kept"), values = c("red"))+theme(legend.position= "top", legend.text = element_text(size = 8))
+                              MakeUMAP_Red(seuratObj, highliht_cells = test,sizePoint = input$cellsSize, sizeHighlight = input$cellsHighlightSize)
                             })
+                            output$downloadUMAPcellKept<- downloadHandler(
+                              filename="UMAP_cell_kept.png",
+                              content=function(file){
+                                png(file, width = 1500 , height = 1100,res = 150)
+                                print(MakeUMAP_Red(seuratObj,test, sizePoint = input$cellsSize, sizeHighlight = input$cellsHighlightSize))
+                                dev.off()
+                              })
+                            
                         }else{
                             test <- colnames(seuratObj)[which(seuratObj[[]][input$whichAnnot] == input$subannot[1])]
                             output$Dimplot_kept <- renderPlot({
-                                DimPlot(seuratObj, cells.highlight = test, order = T)+scale_color_manual(labels = c("Not kept", "Kept"), values = c("gray", "red"))+theme(legend.position= "top", legend.text = element_text(size = 8))
+                              MakeUMAPhighlight(seuratObj, highliht_cells = test,sizePoint = input$cellsSize, sizeHighlight = input$cellsHighlightSize)
                             })
+                            output$downloadUMAPcellKept<- downloadHandler(
+                              filename="UMAP_cell_kept.png",
+                              content=function(file){
+                                png(file, width = 1500 , height = 1100,res = 150)
+                                print(MakeUMAPhighlight(seuratObj,test))
+                                dev.off()
+                              })
                         }
                         if(length(input$subannot) > 1){
                             if(length(input$subannot) == length(annotSbt)){
                                 test <- colnames(seuratObj)
                                 output$Dimplot_kept <- renderPlot({
-                                    DimPlot(seuratObj, cells.highlight = test, order = T)+scale_color_manual(labels = c("Kept"), values = c("red"))+theme(legend.position= "top", legend.text = element_text(size = 8))
+                                    MakeUMAP_Red(seuratObj, highliht_cells = test,sizePoint = input$cellsSize, sizeHighlight = input$cellsHighlightSize)
                                 })
+                                output$downloadUMAPcellKept<- downloadHandler(
+                                  filename="UMAP_cell_kept.png",
+                                  content=function(file){
+                                    png(file, width = 1500 , height = 1100,res = 150)
+                                    print(MakeUMAP_Red(seuratObj,test))
+                                    dev.off()
+                                  })
                             }else{
                                 for(i in 2:length(input$subannot)){
                                     test <- c(test, colnames(seuratObj)[which(seuratObj[[]][input$whichAnnot] == input$subannot[i])])
                                     output$Dimplot_kept <- renderPlot({
-                                        DimPlot(seuratObj, cells.highlight = test, order = T)+scale_color_manual(labels = c("Not kept", "Kept"), values = c("gray", "red"))+theme(legend.position= "top", legend.text = element_text(size = 8))
+                                        MakeUMAPhighlight(seuratObj, highliht_cells = test,sizePoint = input$cellsSize, sizeHighlight = input$cellsHighlightSize)
                                     })
-                                }  
+                                    output$downloadUMAPcellKept<- downloadHandler(
+                                      filename="UMAP_cell_kept.png",
+                                      content=function(file){
+                                        png(file, width = 1500 , height = 1100,res = 150)
+                                        print(MakeUMAPhighlight(seuratObj,test))
+                                        dev.off()
+                                      })
+                                }
                             }
                         }
-                        subsetSeuratObj <<- subset(seuratObj, cells = test) # the double <<- is used to fill a value wich is in observeEvent but that we want to keep for after
+                        subsetSeuratObj <<- subset(seuratObj, cells = test) # the double <<- is used to fill a value which is in observeEvent but that we want to keep for after
                         
                     })
                 }
@@ -2634,6 +3198,7 @@ server <- function(input, output,session) {
                                      shinyalert("warning","Can't find variable features in your RDS need to run FindVariableFeatures()", type = "warning")
                                      subsetSeuratObj <<- FindVariableFeatures(subsetSeuratObj)
                                      subsetSeuratObj <<- ScaleData(subsetSeuratObj)
+                                      
                                  },
                                  finally = subsetSeuratObj <<- RunPCA(subsetSeuratObj) )
                     }else{
@@ -2644,7 +3209,6 @@ server <- function(input, output,session) {
                     incProgress(1/4,message ="Running UMAP")
                     subsetSeuratObj <<- RunUMAP(subsetSeuratObj, dims = 1:30)
                     incProgress(1/4,message ="Finish running UMAP")
-                    
                 })
                 withProgress(message ="Find cluster", value=0,{
                     for(i in seq(0,1,0.1)){
@@ -2654,7 +3218,14 @@ server <- function(input, output,session) {
                     
                 })
                 output$dimplot_aftersbt <- renderPlot({
-                    DimPlot(subsetSeuratObj)
+                    vizu_UMAP(subsetSeuratObj, var = NULL, dlabel = input$labelsAfterSubset)
+                })
+                output$downloadUMAPaftersbt<- downloadHandler(
+                  filename="UMAP_after_sbt.png",
+                  content=function(file){
+                    png(file, width = 1500 , height = 1100,res = 150)
+                    print(vizu_UMAP(subsetSeuratObj,var=NULL, dlabel = input$labelsAfterSubset))
+                    dev.off()
                 })
                 shinyjs::enable("dosubcluster")
                 shinyjs::show("NameObject")
