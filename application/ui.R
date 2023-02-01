@@ -15,7 +15,8 @@ library(plotly)
 library(grid)
 library(dplyr)
 library(shinymanager)
-library(rmarkdown)
+library(gridExtra)
+
 
 options(shiny.maxRequestSize =100000*1024^2)
 # Define UI for application that draws a histogram
@@ -41,8 +42,8 @@ ui <- fluidPage(
                             ),
                             mainPanel(
                                 column(6,uiOutput('Isceberg')),
-                                fluidPage(
-                                  htmltools::tags$iframe(src = "Help.html", width = '100%',  height = 1000,  style = "border:none;"))
+                            fluidPage(
+                             htmltools::tags$iframe(src = "Help.html", width = '100%',  height = 1000,  style = "border:none;"))
                             ,
                                 fluidRow(
                                   titlePanel("Ressource consumption"),

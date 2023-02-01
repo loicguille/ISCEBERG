@@ -42,9 +42,6 @@ server <- function(input, output,session) {
     output$timeCons <- renderUI({
         img(src = "time.jpeg", height = "100%", width = "100%")
         })
-    #output$Help_file <- renderUI({
-    #  includeHTML("Help.html")
-    #})
     observe({
         shinyjs::toggleState("createSeurat", !is.null(input$InputFile) && input$InputFile != "" ||  !is.null(input$MatrixFile) && input$MatrixFile != "" ||  !is.null(input$listFiles) && input$listFiles!= "")#allow to grey a button
     })
@@ -1757,96 +1754,96 @@ server <- function(input, output,session) {
                     shinyjs::toggleState("dosubcluster",input$subcluster == "Annotation" && input$subannot != "" || input$subcluster == "Cluster" && input$subclusterize !="")
                 })
                 observeEvent(input$dosubcluster,{ #we do not normalize data once the subset is done
-                    shinyjs::disable("dosubcluster")
-                    withProgress(message = "Renormalizing data", value = 0,{
-                        incProgress(1/4,message ="Running PCA")
-                        subsetSeuratObj <<- RunPCA(subsetSeuratObj)
-                        incProgress(1/4,message ="Finish PCA")
-                        subsetSeuratObj <<- FindNeighbors(subsetSeuratObj)
-                        incProgress(1/4,message ="Running UMAP")
-                        subsetSeuratObj <<- RunUMAP(subsetSeuratObj, dims = 1:30)
-                        incProgress(1/4,message ="Running UMAP")
+                  shinyjs::disable("dosubcluster")
+                  withProgress(message = "Renormalizing data", value = 0,{
+                    incProgress(1/4,message ="Running PCA")
+                    subsetSeuratObj <<- RunPCA(subsetSeuratObj)
+                    incProgress(1/4,message ="Finish PCA")
+                    subsetSeuratObj <<- FindNeighbors(subsetSeuratObj)
+                    incProgress(1/4,message ="Running UMAP")
+                    subsetSeuratObj <<- RunUMAP(subsetSeuratObj, dims = 1:30)
+                    incProgress(1/4,message ="Running UMAP")
+                  })
+                  withProgress(message ="Find cluster", value=0,{
+                    for(i in seq(0,1,0.1)){
+                      incProgress(i*10/10,message =paste0("res ",i*10,"/10"))
+                      subsetSeuratObj <<- FindClusters(subsetSeuratObj, res =i)
+                    }
+                    
+                  })
+                  output$dimplot_aftersbt <- renderPlot({
+                    vizu_UMAP(subsetSeuratObj, dlabel = input$labelsAfterSubset)
+                  })
+                  output$downloadUMAPaftersbt<- downloadHandler(
+                    filename="UMAP_After_sbt.png",
+                    content=function(file){
+                      png(file, width = 1500 , height = 1100,res = 150)
+                      print(vizu_UMAP(subsetSeuratObj, dlabel = input$labelsAfterSubset))
+                      dev.off()
                     })
-                    withProgress(message ="Find cluster", value=0,{
-                        for(i in seq(0,1,0.1)){
-                            incProgress(i*10/10,message =paste0("res ",i*10,"/10"))
-                            subsetSeuratObj <<- FindClusters(subsetSeuratObj, res =i)
-                        }
-                        
-                    })
-                    output$dimplot_aftersbt <- renderPlot({
-                        vizu_UMAP(subsetSeuratObj, dlabel = input$labelsAfterSubset)
-                    })
-                    output$downloadUMAPaftersbt<- downloadHandler(
-                      filename="UMAP_After_sbt.png",
-                      content=function(file){
-                        png(file, width = 1500 , height = 1100,res = 150)
-                        print(vizu_UMAP(subsetSeuratObj, dlabel = input$labelsAfterSubset))
-                        dev.off()
-                      })
-                    shinyjs::enable("dosubcluster")
-                    shinyjs::show("NameObject")
-                    shinyjs::show("downloadSubRds")
-                    shinyjs::show("downloadLog")
+                  shinyjs::enable("dosubcluster")
+                  shinyjs::show("NameObject")
+                  shinyjs::show("downloadSubRds")
+                  shinyjs::show("downloadLog")
                 })
                 observe({
-                    shinyjs::toggleState("downloadSubRds",input$NameObject != "")
+                  shinyjs::toggleState("downloadSubRds",input$NameObject != "")
                 })
                 output$downloadSubRds <- downloadHandler(
-                    filename = function(){
-                        paste0(input$NameObject,".rds")
-                    },
-                    content = function(file){
-                        shinyalert("warning", "Seurat object can be heavy, and it can take time, please be patient, don't click multiple times", "warning")
-                        saveRDS(subsetSeuratObj,file)
-                    }
-                    
+                  filename = function(){
+                    paste0(input$NameObject,".rds")
+                  },
+                  content = function(file){
+                    shinyalert("warning", "Seurat object can be heavy, and it can take time, please be patient, don't click multiple times", "warning")
+                    saveRDS(subsetSeuratObj,file)
+                  }
+                  
                 )
                 observe({
-                    shinyjs::toggleState("downloadLog",input$NameObject)
+                  shinyjs::toggleState("downloadLog",input$NameObject)
                 })
                 output$downloadLog <- downloadHandler(
-                    filename = function(){
-                        paste0(input$NameObject,"_log.html")
-                    },
-                    content = function(file){
-                        tempReport <- file.path(tempdir(),"logFile.Rmd")
-                        file.copy("logFile.Rmd", tempReport,overwrite = T)
-                        line <- paste0("\tSeuratObjsubset <- subset(seuratObj, subset = nFeature_RNA > ",input$minGenePerCells," & nFeature_RNA < ",input$maxGenePerCells," & percent.mt < ",input$percentMito,")")
-                        write(line,tempReport, append =TRUE)
-                        if(input$normalization == "SCTransform"){
-                            line <- paste0("\tSeuratObjsubset <- SCTransform(SeuratObjsubset)")
-                            write(line,tempReport, append =TRUE)
-                        }else{
-                            line <- paste0("\tSeuratObjsubset <- NormalizeData(SeuratObjsubset)")
-                            write(line,tempReport, append =TRUE)
-                            line <- paste0("\tSeuratObjsubset <- FindVariableFeatures(SeuratObjsubset)")
-                            write(line,tempReport, append =TRUE)
-                            line <- paste0("\tSeuratObjsubset <- ScaleData(SeuratObjsubset)")
-                            write(line,tempReport, append =TRUE)
-                        }
-                        write("\tSeuratObjsubset <- RunPCA(SeuratObjsubset)",tempReport, append =TRUE)
-                        write("\tSeuratObjsubset <- FindNeighbors(SeuratObjsubset)", tempReport, append = TRUE)
-                        write("\tSeuratObjsubset <- RunUMAP(SeuratObjsubset, dims = 1:30)\n", tempReport, append = TRUE)
-                        for(i in seq(input$Resolution[1],input$Resolution[2], input$ResolutionStep)){
-                            write(paste0("\tSeuratObjsubset <- FindClusters(SeuratObjsubset, res =", i,")"),tempReport, append = TRUE)
-                        }
-                        
-                        if(input$subcluster == "Cluster"){
-                            line <- paste0("\tsubsetSeuratObj <- subset(SeuratObjsubset, subset =",input$clusterResPage7," == ",list(input$subclusterize),")")
-                        }else{
-                            line <- paste0("\tsubsetSeuratObj <- subset(SeuratObjsubset, subset = ",input$whichAnnot," == ",list(input$subannot),")")
-                        }
-                        write(line,tempReport, append =TRUE)
-                        write("\tsubsetSeuratObj <- RunPCA(subsetSeuratObj)",tempReport, append =TRUE)
-                        write("\tsubsetSeuratObj <- FindNeighbors(subsetSeuratObj)", tempReport, append = TRUE)
-                        write("\tsubsetSeuratObj <- RunUMAP(subsetSeuratObj, dims = 1:30)\n", tempReport, append = TRUE)
-                        write("\tfor(i in seq(0,1,0.1)){",tempReport, append = T)
-                        write("\t\tsubsetSeuratObj <- findClusters(subsetSeuratObj, res = i)",tempReport, append = T)
-                        write("\t}\n",tempReport, append = T)
-                        rmarkdown::render(tempReport,output_file = file, params = command, envir = new.env(parent = globalenv()))
+                  filename = function(){
+                    paste0(input$NameObject,"_log.html")
+                  },
+                  content = function(file){
+                    tempReport <- file.path(tempdir(),"logFile.Rmd")
+                    file.copy("logFile.Rmd", tempReport,overwrite = T)
+                    line <- paste0("\tSeuratObjsubset <- subset(seuratObj, subset = nFeature_RNA > ",input$minGenePerCells," & nFeature_RNA < ",input$maxGenePerCells," & percent.mt < ",input$percentMito,")")
+                    write(line,tempReport, append =TRUE)
+                    if(input$normalization == "SCTransform"){
+                      line <- paste0("\tSeuratObjsubset <- SCTransform(SeuratObjsubset)")
+                      write(line,tempReport, append =TRUE)
+                    }else{
+                      line <- paste0("\tSeuratObjsubset <- NormalizeData(SeuratObjsubset)")
+                      write(line,tempReport, append =TRUE)
+                      line <- paste0("\tSeuratObjsubset <- FindVariableFeatures(SeuratObjsubset)")
+                      write(line,tempReport, append =TRUE)
+                      line <- paste0("\tSeuratObjsubset <- ScaleData(SeuratObjsubset)")
+                      write(line,tempReport, append =TRUE)
+                    }
+                    write("\tSeuratObjsubset <- RunPCA(SeuratObjsubset)",tempReport, append =TRUE)
+                    write("\tSeuratObjsubset <- FindNeighbors(SeuratObjsubset)", tempReport, append = TRUE)
+                    write("\tSeuratObjsubset <- RunUMAP(SeuratObjsubset, dims = 1:30)\n", tempReport, append = TRUE)
+                    for(i in seq(input$Resolution[1],input$Resolution[2], input$ResolutionStep)){
+                      write(paste0("\tSeuratObjsubset <- FindClusters(SeuratObjsubset, res =", i,")"),tempReport, append = TRUE)
                     }
                     
+                    if(input$subcluster == "Cluster"){
+                      line <- paste0("\tsubsetSeuratObj <- subset(SeuratObjsubset, subset =",input$clusterResPage7," == ",list(input$subclusterize),")")
+                    }else{
+                      line <- paste0("\tsubsetSeuratObj <- subset(SeuratObjsubset, subset = ",input$whichAnnot," == ",list(input$subannot),")")
+                    }
+                    write(line,tempReport, append =TRUE)
+                    write("\tsubsetSeuratObj <- RunPCA(subsetSeuratObj)",tempReport, append =TRUE)
+                    write("\tsubsetSeuratObj <- FindNeighbors(subsetSeuratObj)", tempReport, append = TRUE)
+                    write("\tsubsetSeuratObj <- RunUMAP(subsetSeuratObj, dims = 1:30)\n", tempReport, append = TRUE)
+                    write("\tfor(i in seq(0,1,0.1)){",tempReport, append = T)
+                    write("\t\tsubsetSeuratObj <- findClusters(subsetSeuratObj, res = i)",tempReport, append = T)
+                    write("\t}\n",tempReport, append = T)
+                    rmarkdown::render(tempReport,output_file = file, params = command, envir = new.env(parent = globalenv()))
+                  }
+                  
                 )
             })
             #########################################################################################################################################################################
@@ -3250,27 +3247,27 @@ server <- function(input, output,session) {
             })
             
             output$downloadLog <- downloadHandler(
-                
-                filename = function(){
-                    paste0(input$NameObject,"_log.html")
-                },
-                content = function(file){
-                    tempReport <- file.path(tempdir(),"logFile.Rmd")
-                    file.copy("logFile.Rmd", tempReport,overwrite = T)
-                    if(input$subcluster == "Cluster"){
-                        line <- paste0("\tsubsetSeuratObj <- subset(seuratObj, subset =",input$clusterResPage7," == ",list(input$subclusterize),")")
-                    }else{
-                        line <- paste0("\tsubsetSeuratObj <- subset(seuratObj, subset = ",input$whichAnnot," == ",list(input$subannot),")")
-                    }
-                    write(line,tempReport, append =TRUE)
-                    write("\tsubsetSeuratObj <- RunPCA(subsetSeuratObj)",tempReport, append =TRUE)
-                    write("\tsubsetSeuratObj <- FindNeighbors(subsetSeuratObj)", tempReport, append = TRUE)
-                    write("\tsubsetSeuratObj <- RunUMAP(subsetSeuratObj, dims = 1:30)\n", tempReport, append = TRUE)
-                    write("\tfor(i in seq(0,1,0.1)){",tempReport, append = T)
-                    write("\t\tsubsetSeuratObj <- findClusters(subsetSeuratObj, res = i)",tempReport, append = T)
-                    write("\t}\n",tempReport, append = T)
-                    rmarkdown::render(tempReport,output_file = file, params = command, envir = new.env(parent = globalenv()))
+              
+              filename = function(){
+                paste0(input$NameObject,"_log.html")
+              },
+              content = function(file){
+                tempReport <- file.path(tempdir(),"logFile.Rmd")
+                file.copy("logFile.Rmd", tempReport,overwrite = T)
+                if(input$subcluster == "Cluster"){
+                  line <- paste0("\tsubsetSeuratObj <- subset(seuratObj, subset =",input$clusterResPage7," == ",list(input$subclusterize),")")
+                }else{
+                  line <- paste0("\tsubsetSeuratObj <- subset(seuratObj, subset = ",input$whichAnnot," == ",list(input$subannot),")")
                 }
+                write(line,tempReport, append =TRUE)
+                write("\tsubsetSeuratObj <- RunPCA(subsetSeuratObj)",tempReport, append =TRUE)
+                write("\tsubsetSeuratObj <- FindNeighbors(subsetSeuratObj)", tempReport, append = TRUE)
+                write("\tsubsetSeuratObj <- RunUMAP(subsetSeuratObj, dims = 1:30)\n", tempReport, append = TRUE)
+                write("\tfor(i in seq(0,1,0.1)){",tempReport, append = T)
+                write("\t\tsubsetSeuratObj <- findClusters(subsetSeuratObj, res = i)",tempReport, append = T)
+                write("\t}\n",tempReport, append = T)
+                rmarkdown::render(tempReport,output_file = file, params = command, envir = new.env(parent = globalenv()))
+              }
             )
         }
     })
