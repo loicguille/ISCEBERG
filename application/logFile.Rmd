@@ -6,6 +6,9 @@ author:
   - Julie Chevalier ^[Inserm, julie.chevalier@inserm.fr]
 date: "`r format(Sys.time(), '%d %b, %Y')`"
 output: html_document
+params:
+  use: NULL
+  
 ---
 
 ```{r setup, include=FALSE}
@@ -27,7 +30,7 @@ Loïc Guille, Manuel Johanns, Francesco Zummo, Bart Staels, Philippe Lefebvre, J
 ## Command used :
 
 ```{r command}
-
+params$use
 ```
 
 ## Packages used :

@@ -16,6 +16,8 @@ library(grid)
 library(dplyr)
 library(shinymanager)
 library(gridExtra)
+library(colourpicker)
+library(rlang)
 
 
 options(shiny.maxRequestSize =100000*1024^2)
@@ -32,10 +34,10 @@ ui <- fluidPage(
                             sidebarPanel(
                                 radioButtons("file", "Type of file", choices = c("Mtx","CSV","H5","RDS","Txt"), selected = NULL),
                                 conditionalPanel(condition = "input.file != 'Mtx'",fileInput("InputFile", "Upload file (don't forget to load the data once this is over)", multiple = TRUE), fileInput("Metadata", "Would you add metadata ? (optional)", multiple = TRUE)),
-                                conditionalPanel(condition = "input.file == 'Mtx' ", fileInput("MatrixFile", "Upload Matrix", multiple = TRUE), fileInput("GeneFile", "Upload gene or feature file", multiple = TRUE), fileInput("CellsFile", "Upload barcode", multiple = TRUE)),
+                                conditionalPanel(condition = "input.file == 'Mtx' ", fileInput("MatrixFile", "Upload Matrix", multiple = TRUE), fileInput("GeneFile", "Upload gene or feature file", multiple = TRUE), fileInput("CellsFile", "Upload barcode", multiple = TRUE), radioButtons("FeatureName", "Feature identification", choices = c("Gene Symbol", "EnsemblID"))),
                                 conditionalPanel(condition = "input.file == 'CSV'  | input.file == 'Txt' ", radioButtons("header", "Is the file(s) containing header(s) ?", choices =c("Yes", "No")),radioButtons("separator", "What is the separator of your file ?", choices = c(",", ";","tab"))),
                                 br(),
-                                conditionalPanel(condition = "input.file != 'RDS' ", numericInput("MinGeneByCells", "How many cells a gene has to be found in to be kept", min = 0,max = 100 , value = 3),numericInput("MinCells", "How many genes a cells has to express to be kept", value = 100, min = 0, max = 1000, step = 10)),
+                                conditionalPanel(condition = "input.file != 'RDS' ", numericInput("MinGeneByCells", "Minimum number of different cell where a gene has to be found", min = 0,max = 100 , value = 3),numericInput("MinCells", "How many genes a cells has to express to be kept", value = 100, min = 0, max = 1000, step = 10)),
                                 actionButton("createSeurat","Run Pre-processing"),
                                 actionButton("Refresh","Refresh data"),
                                 width = 2
@@ -73,6 +75,12 @@ ui <- fluidPage(
                                 br(),
                                 br(),
                                 downloadButton("downloadLogFile","Download log file"),
+                                br(),
+                                br(),
+                                selectizeInput("InfoToPlotFilter","Select metadata you want to project", choices = character(0)),
+                                checkboxInput("BooleanColorsFilter", "Do you want to change plot colors", value = FALSE),
+                                uiOutput('myPanelFilter'),
+                                downloadButton("downloadColorFileFilter","Download color file"),
                                 width = 2
                             ),
                             mainPanel(
@@ -84,6 +92,8 @@ ui <- fluidPage(
                                            downloadButton("download_barplot_before_after", "Download plot"),
                                            plotOutput("cellcycle"),
                                            fluidRow(column(3,downloadButton("download_cell_cycle", "Download UMAP")), column(3, checkboxInput("showlabelcc","Add label to plot", value = TRUE))),
+                                           plotOutput("plotchoiceFilter"),
+                                           fluidRow(column(3,downloadButton("download_choice_filter", "Download UMAP")), column(3, checkboxInput("showlabelfilter","Add label to plot", value = TRUE)),column(3, numericInput("pointSizeBatch", "Point size",min = 0.25, max = 5 , value = 0.5, step = 0.25 )) ),
                                            plotOutput("clusteringPlot"),
                                            fluidRow(column(3,downloadButton("download_clustering_plot", "Download UMAP")), column(3, checkboxInput("showlabelcluster","Add label to plot", value = TRUE)))
                                            ),
@@ -93,9 +103,9 @@ ui <- fluidPage(
                                            plotOutput("nbcells_by_datasets"),
                                            downloadButton("download_nb_cells_dt", "Download plot"),
                                            plotOutput("geneExpByCell"),
-                                           downloadButton("download_UMAP_nb_genes_cells", "Download UMAP"),
+                                           fluidRow(column(3,downloadButton("download_UMAP_nb_genes_cells", "Download UMAP")),column(3, numericInput("pointSizeNbCell", "Point size",min = 0.25, max = 5 , value = 0.5, step = 0.25 ))),
                                            plotOutput("BatchVizu"),
-                                           fluidRow(column(3,downloadButton("downloadbatchVizu", "Download plot")), column(3,checkboxInput("showlabelBatch","Add label to plot", value = TRUE)))
+                                           fluidRow(column(3,downloadButton("downloadbatchVizu", "Download plot")), column(3,checkboxInput("showlabelBatch","Add label to plot", value = TRUE))),
                                            
                                     )
                                 
@@ -106,7 +116,11 @@ ui <- fluidPage(
                tabPanel("QC", icon = icon("ruler"),
                         sidebarLayout(
                             sidebarPanel(id = "sidebar",
-                                         selectizeInput("InfoToPlot","What type of informations do you want to project ?", choices = character(0)),width = 2),
+                                         selectizeInput("InfoToPlot","What type of informations do you want to project ?", choices = character(0)),
+                                         checkboxInput("BooleanColors", "Do you want to change plot colors", value = FALSE),
+                                         uiOutput('myPanel'),
+                                         downloadButton("downloadColorFile","Download color file"),
+                                         width = 2),
                             mainPanel(
                                 fluidRow(
                                     column(6,
@@ -121,9 +135,9 @@ ui <- fluidPage(
                                        plotOutput("nbcells_by_datasetsQC"),
                                        downloadButton('downloadHistNbCells', "Download plot"),
                                        plotOutput("geneExpByCellQC"),
-                                      downloadButton('downloadUMAP_gene_by_cell', "Download UMAP"),
+                                      fluidRow(column(3,downloadButton('downloadUMAP_gene_by_cell', "Download UMAP")),column(3, numericInput("pointSizeNbCellQC", "Point size",min = 0.25, max = 5 , value = 0.5, step = 0.25 ))),
                                        plotOutput("plotChoice"),
-                                       fluidRow(column(3,downloadButton('downloadUMAP_choice', "Download UMAP")), column(3, checkboxInput("addlabels_choice", " Add labels to plot", value = TRUE)))))
+                                       fluidRow(column(3,downloadButton('downloadUMAP_choice', "Download UMAP")), column(3, checkboxInput("addlabels_choice", " Add labels to plot", value = TRUE)), column(3, numericInput("sizePoint_choice", "Point size",min = 0.25, max = 5 , value = 0.5, step = 0.25 )) )))
                                 )
                         )
                ),
@@ -177,18 +191,26 @@ ui <- fluidPage(
                                 conditionalPanel(condition = " input.SplitVln == true", selectizeInput("AnnotAgainst","Group for split", choices = character(0))),
                                 conditionalPanel(condition = " input.SplitVln == true", selectizeInput("labelsToKeep1","Labels to keep", multiple = T, choices = character(0))),
                                 conditionalPanel(condition = " input.SplitVln == true", selectizeInput("labelsToKeep2","Labels to keep", multiple = T, choices = character(0))),
-                                radioButtons("format", "Download plot as : ", choices=c("PNG", "SVG")),
+                                radioButtons("format", "Download plot as : ", choices=c("tiff", "SVG")),
                                 downloadButton('downloadMatrix',"Download entire matrix"),
                                 width = 2
                             ),
                             mainPanel(
-                              fluidRow(column(6,DT::dataTableOutput("geneExp"),
+                              fluidRow(column(6,DT::dataTableOutput("geneExp"),br(),
                                               downloadButton('downloadRawCount', 'Download')),
                                        column(6,plotOutput('clusterOutput'),
                                               fluidRow(column(3,downloadButton('downloadUMAP_Cluster_resolution', "Download UMAP")), column(3,checkboxInput("addlabels_ODM", " Add labels to plot", value = TRUE))))
                               ),
+                              fluidRow(
+                                column(3,checkboxInput('colorScale',"Change color scale", value = FALSE)),
+                                column(3,conditionalPanel(condition = "input.colorScale == true", colourInput("colorPickCol","Pick a color", "red")))
+                              ),
                                 tabsetPanel(
                                     tabPanel("Feature plot",
+                                            
+                                             fluidRow(
+                                               column(3,downloadButton('downloadfeatureplot',"Download plot")),
+                                             ),
                                              fluidRow(
                                                column(6,plotOutput('FeaturePlotMultGenes1')),
                                                column(6,plotOutput('FeaturePlotMultGenes2'))
@@ -208,10 +230,11 @@ ui <- fluidPage(
                                              fluidRow(
                                                column(6,plotOutput('FeaturePlotMultGenes9')),
                                                column(6,plotOutput('FeaturePlotMultGenes10'))
-                                             ),
-                                             downloadButton('downloadfeatureplot',"Download plot")
+                                             )
+                                             
                                     ),
                                     tabPanel("Violin plot",
+                                             downloadButton("VPdownload","Download plot"),
                                              fluidPage(
                                                fluidRow(
                                                  column(6,plotOutput('ViolinPlot1')),
@@ -232,24 +255,26 @@ ui <- fluidPage(
                                                fluidRow(
                                                  column(6,plotOutput('ViolinPlot9')),
                                                  column(6,plotOutput('ViolinPlot10'))
-                                               )),
-                                             #plotOutput('ViolinPlot')),
-                                             downloadButton("VPdownload","Download plot")
-                                             
+                                               ))   
                                     ),
                                     tabPanel("Heatmap",
                                              plotOutput('Heatmap'),
-                                             downloadButton("HMdownload","Download plot")
+                                             fluidRow(
+                                               column(3,downloadButton("HMdownload","Download plot")),
+                                             )
                                     ),
                                     tabPanel("Dotplot",
                                              plotOutput('Dotplot'),
-                                             downloadButton("DPdownload","Download plot")
+                                             fluidRow(
+                                               column(3,downloadButton("DPdownload","Download plot")),
+                                             )     
                                     )
                                 )
                                   
                             )
                         )
                ),
+               ########### PAGE 5 Data mining for combination of genes
                tabPanel(
                    "Data mining for a combination of gene", icon = icon("blender"),
                    sidebarLayout(
@@ -261,11 +286,14 @@ ui <- fluidPage(
                            selectizeInput("GeneListPool", "Gene list you want to pool together", choices= character(0), multiple=T),
                            fileInput("fileGeneList","Upload gene list file"),
                            radioButtons("SumorMeans", "Do you want that the UMAP projection represent the sum or the mean of the expression of the genes list ?", choices=c("Sum","Mean","AddModuleScore Function"), selected = "Sum"),
-                           radioButtons("format2", "Download plot as : ", choices=c("PNG", "SVG")),
+                           checkboxInput('colorScalePooled',"Change color scale", value = FALSE),
+                           conditionalPanel(condition = "input.colorScalePooled == true", colourInput("colorPickColPooled","Pick a color", "red")),
+                           radioButtons("format2", "Download plot as : ", choices=c("tiff", "SVG")),
                            downloadButton('downloadMatrixMultList',"Download entire matrix from list"),
                            br(),
                            br(),
                            downloadButton('downloadMatrixMultFile',"Download entire matrix from file"),
+                           
                            width=2),
                        mainPanel(
                            fluidRow(
@@ -273,7 +301,7 @@ ui <- fluidPage(
                                       tabsetPanel(
                                           tabPanel("Feature plot",
                                                    plotOutput("FeaturePlotMultGenesPooled"),
-                                                   downloadButton('downloadfeatureplotMultGenesPooled',"Download plot")
+                                                   fluidRow(column(3,downloadButton('downloadfeatureplotMultGenesPooled',"Download plot")),column(3,numericInput("sizePoint_pool", "Cell size", min = 0.25, max = 5, value = 1, step = 0.25)))
                                           ),
                                           tabPanel("Violin plot",
                                                    plotOutput('ViolinPlotMultGenesPooled'),
@@ -289,7 +317,7 @@ ui <- fluidPage(
                                         tabsetPanel(
                                             tabPanel("Feature plot",
                                                   plotOutput("FeaturePlotMultGenesPooledFilesInput"),
-                                                  downloadButton('downloadfeatureplotMultGenesPooledFilesInput',"Download plot"),
+                                                  fluidRow(column(3,downloadButton('downloadfeatureplotMultGenesPooledFilesInput',"Download plot")),column(3,numericInput("sizePoint_file", "Cell size", min = 0.25, max = 5, value = 1, step = 0.25)))
                                             ),
                                             tabPanel("Violin plot",
                                                plotOutput("ViolinPlotMultGenesPooledFilesInput"),
@@ -324,9 +352,11 @@ ui <- fluidPage(
                                column(6,
                                       plotOutput("Dimplot_cluster"),
                                       fluidRow(column(3,downloadButton('downloadUMAP_info', "Download UMAP")),(column(3, checkboxInput("addlabels_info", " Add labels to plot", value = TRUE)))),
-                                      plotlyOutput("ggplot_information"),
+                                      #plotlyOutput("ggplot_information"),
+                                      plotOutput("ggplot_information"),
                                       downloadButton('downloadInformationPlot', "Download plot"),
-                                      plotlyOutput("cluster_percent"),
+                                      plotOutput("cluster_percent"),
+                                      #plotlyOutput("cluster_percent"),
                                       downloadButton('downloadInformationPlot2', "Download plot")
                                     
                                ),
@@ -373,7 +403,34 @@ ui <- fluidPage(
                             )
                         )
                 ),
-               ######### PAGE 8 subclustering
+               ########### PAGE 8 Automatic annotation using SCINA
+               tabPanel("Add automatic annotation",icon = icon("bullseye"), 
+                        sidebarLayout(
+                          sidebarPanel(
+                            radioButtons("typeOfList", "From what kind of list do you want to pass the markers for automatic annotation",choices =c("File", "List")),
+                            conditionalPanel(condition = "input.typeOfList == 'File'", fileInput("InputMarkerFile", "Upload file")),
+                            textInput("slotNameAnnotScina","Name for your annotation (mandatory)"),
+                            conditionalPanel(condition = "input.typeOfList == 'List'", numericInput("NbCellType","How many cell type do you want to annotate ?", value = 1, min = 1),uiOutput('testPanel')),
+                            radioButtons("Unknown", "Allow unknown annotation (advised)", choices = c("Yes","No"), selected = "Yes"),
+                            radioButtons("Overlap","Allow overlap of markers between cell types", choices = c("Yes","No"), selected = "Yes"),
+                            actionButton("AutomaticAnnotation", "Annotate"),
+                            br(),
+                            br(),
+                            downloadButton("downloadProbabilities", "Download probabilities"),
+                            width = 2
+                          ),
+                          mainPanel(
+                            fluidRow(column(6,
+                                            plotOutput("Results_annotation"),
+                                            fluidRow(column(3,downloadButton("Scina_annot_DL", "Download UMAP")))),
+                                     column(6,
+                                            plotOutput("Probabilities"),
+                                            fluidRow(column(3,downloadButton("Probabilities_Dl", "Download UMAP")), column(3,selectizeInput("Proba_selection","Select a cell type to plot", choices = character(0)))))
+                                     ),
+                            htmlOutput("FileExplanation"),
+                          )
+                        )),
+               ######### PAGE 9 subclustering
                tabPanel("Subclustering", icon = icon("cut"),
                         sidebarLayout(
                             sidebarPanel(

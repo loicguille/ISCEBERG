@@ -26,6 +26,7 @@ All the functionnalities are listed here. For more details see the Documentation
 - Data mining for a combination of genes (expression plots of a list of genes given in parameter or with a file)
 - Extract information (ex : distribution of metadata groups across clusters)
 - Add annotations
+- Add automatic annotations using SCINA
 - Subclustering (subcluster data based on annotation or cluster)
 
 ## Installation 

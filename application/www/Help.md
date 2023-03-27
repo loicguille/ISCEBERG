@@ -95,8 +95,15 @@ Information extraction is used to know the composition of the cluster with regar
 ## Add annotation page 
 
 Once you have identify a cluster of interest based on the differential expressed genes or else, the browser will allow you to add an annotation on this cluster. In order to do so, you can choose *Create*, and put a name **without space**, once you have done that you have to choose the resolution based on the cluster you want to annotate. Finally you can write your annotation and click on Annotate. If you have correctly done all the previous steps a pop-up will be displayed telling you that you have correctly annotated your object, and the projection of what you have annotated. 
+
 If you want to annotate a metadata that is already present in your dataset, you can choose the option to *Update* a previous annotation. This will display the UMAP projection of the annotation you want to annotate. Then you have to fill the form with the same informations as before and click on "annotate". 
 Once the annotation has been done you have the possibility to download the Seurat object. This object will contains all the annotation you have done before. 
+
+## Add automatic annotation
+
+Our application provides an easy-to-use interface for annotating single cells using the SCINA tool. Our user-friendly interface allows you to import your single-cell data and choose the appropriate marker lists for your analysis. Once you've selected your markers, the SCINA algorithm will automatically annotate each cell in your dataset based on their unique gene expression profile.
+
+You can download probabilities matrix at the end of the annotation. 
 
 ## Subclustering page 
 
