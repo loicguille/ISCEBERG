@@ -19,6 +19,7 @@ library(gridExtra)
 library(colourpicker)
 library(scales)
 library(rlang)
+library(rmarkdown)
 
 
 source("Utils.R")
