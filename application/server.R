@@ -30,6 +30,7 @@ source("QC.R")
 source("ReadFile.R")
 source("Automatic_annot_SCINA.R")
 source("New_SCINA.R")
+source("write_output_download.R")
 options(shiny.maxRequestSize =100000*1024^2)
 
 
@@ -189,7 +190,9 @@ server <- function(input, output,session) {
                 for(i in c("downloadSeurat","downloadLogFile","NameSeuratLog","download_barplot_before_after","InfoToPlotFilter","BooleanColorsFilter","downloadColorFileFilter","download_cell_cycle","download_choice_filter","download_clustering_plot","showlabelcc", "showlabelfilter","showlabelcluster","downloadAfterFiltering","download_nb_cells_dt","download_UMAP_nb_genes_cells","downloadbatchVizu","showlabelBatch","pointSizeNbCell","pointSizeBatch")){
                   shinyjs::show(i)
                 }
-                
+                observe({
+                  shinyjs::toggleState("downloadColorFileFilter", input$BooleanColorsFilter != FALSE)
+                })
                 observe({
                     shinyjs::toggleState("downloadSeurat",input$NameSeuratLog != "")
                 })
@@ -383,7 +386,12 @@ server <- function(input, output,session) {
                       }
                       return(cols)
                     }
-                    
+                    output$downloadColorFileFilter <- downloadHandler(
+                      filename = "ColorFile.csv",
+                      content=function(file){
+                        write_color_file(color_list = list_Color_Label, name_file = file)
+                      }
+                    )
                     output$plotchoiceFilter <- renderPlot({
                       cols <- render_colors()
                       vizu_UMAP(SeuratObjsubset,var =input$InfoToPlotFilter,  dlabel = input$showlabelfilter, color = cols, sizePoint = input$pointSizeBatch)
@@ -1647,7 +1655,9 @@ server <- function(input, output,session) {
             available_metadata <- colnames(seuratObj@meta.data)
             available_metadata <- available_metadata[-which(available_metadata %in% c("nCount_RNA","nFeature_RNA","percent.mt","S.Score", "G2M.Score","nCount_SCT", "nFeature_SCT"))]
             updateSelectizeInput(session, "InfoToPlot", choices= available_metadata, server=TRUE)
-            
+            observe({
+              shinyjs::toggleState("downloadColorFile", input$BooleanColors != FALSE)
+            })
             ## Violin plot on data
             output$featureQC <- renderPlot({
                 makeVlnGreatAgain(seuratObj,  grouping = "orig.ident",var = c("nFeature_RNA","nCount_RNA","percent.mt"), col = 3) 
@@ -1773,9 +1783,7 @@ server <- function(input, output,session) {
             output$downloadColorFile<- downloadHandler(
               filename="Color_file.csv",
               content=function(file){
-                sink(file)
-                print(list_Color_Label)
-                sink()
+                write_color_file(color_list = list_Color_Label, name_file = file)
               })
             
             
