@@ -19,7 +19,7 @@ library(gridExtra)
 library(colourpicker)
 library(scales)
 library(rlang)
-
+library(rmarkdown)
 
 source("Utils.R")
 source("Pooled_Genes_mining.R")
@@ -2668,7 +2668,7 @@ server <- function(input, output,session) {
             ######################################
             ######## Automatic annotation ########
             ######################################
-            shinyjs::disable("downloadProbabilities")
+            #shinyjs::disable("downloadProbabilities")
             gene <- seuratObj@assays$RNA@counts@Dimnames[[1]]
             observe({
               shinyjs::toggleState("AutomaticAnnotation",input$slotNameAnnotScina != "")
@@ -2686,7 +2686,8 @@ server <- function(input, output,session) {
                 )
                 
               })
-              lapply(seq(1,input$NbCellType), function(i){
+              updateSelectizeInput(session,paste("markerCellType",1,sep="_"),choices=gene, server = TRUE)
+              lapply(seq(2,input$NbCellType), function(i){
                 updateSelectizeInput(session,paste("markerCellType",i,sep="_"),choices=gene, server = TRUE)
               })
             })
@@ -3012,23 +3013,7 @@ server <- function(input, output,session) {
                 paste0(input$NameObject,"_log.html")
               },
               content = function(file){
-                tempReport <- file.path(tempdir(),"logFile.Rmd")
-                file.copy("logFile.Rmd",tempReport ,overwrite = TRUE)
-                command <- list()
-                if(input$subcluster == "Cluster"){
-                  line <- paste0("subsetSeuratObj <- subset(seuratObj, subset =",input$clusterResPage7," == ",list(input$subclusterize),")")
-                }else{
-                  line <- paste0("subsetSeuratObj <- subset(seuratObj, subset = ",input$whichAnnot," == ",list(input$subannot),")")
-                }
-                command <- append(command,line)
-                command <- append(command,"SeuratObjsubset <- RunPCA(SeuratObjsubset)")
-                command <- append(command,"SeuratObjsubset <- FindNeighbors(SeuratObjsubset)")
-                command <- append(command,"SeuratObjsubset <- RunUMAP(SeuratObjsubset, dims = 1:30)")
-                for(i in seq(input$Resolution[1],input$Resolution[2], input$ResolutionStep)){
-                  command <- append(command,paste0("SeuratObjsubset <- FindClusters(SeuratObjsubset, res =", i,")"))
-                }
-                params <- list(use = command)
-                rmarkdown::render(tempReport,output_file = file,params = params, envir = new.env(parent = globalenv()))
+                write_rmarkdown_report_subclustering(name_file = file, ClustOrAnnot = input$subcluster, cluster = input$clusterResPage7, subsetCluster = input$subclusterize, Annot = input$whichAnnot, subsetAnnot = input$subannot)
               }
             )
         }

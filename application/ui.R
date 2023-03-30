@@ -18,7 +18,7 @@ library(shinymanager)
 library(gridExtra)
 library(colourpicker)
 library(rlang)
-
+library(rmarkdown)
 
 options(shiny.maxRequestSize =100000*1024^2)
 # Define UI for application that draws a histogram
