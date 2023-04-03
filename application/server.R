@@ -20,10 +20,7 @@ library(colourpicker)
 library(scales)
 library(rlang)
 library(rmarkdown)
-<<<<<<< HEAD
 
-=======
->>>>>>> development
 
 source("Utils.R")
 source("Pooled_Genes_mining.R")
