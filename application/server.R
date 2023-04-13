@@ -801,9 +801,9 @@ server <- function(input, output,session) {
                         need(input$GeneListPool != "", "Choose at least one gene to display violin plot. This plot can pool some gene and get the sum of the normalized counts. \nAddModuleScore function will calculate the average expression levels of each program (cluster) on single cell level, subtracted by the aggregated expression of control feature sets. All analyzed features are binned based on averaged expression, and the control features are randomly selected from each bin.")
                       )
                       if(input$ResOrAnnotMult == "Resolution"){
-                        VlnPlotPooled(SeuratObjsubset,gene = input$GeneListPool, typeOfNorm = input$SumorMeans, annotOrRes = input$ResOrAnnotMult, cluster = input$clusterwatch, color_list = list_Color_Label, BoolCol = input$BooleanColorsFilter)
+                        VlnPlotPooled(SeuratObjsubset,gene = input$GeneListPool, typeOfNorm = input$SumorMeans, annotOrRes = input$ResOrAnnotMult, cluster = input$clusterwatch, color_list = list_Color_Label)
                       }else{
-                        VlnPlotPooled(SeuratObjsubset,gene = input$GeneListPool, typeOfNorm = input$SumorMeans, annotOrRes = input$ResOrAnnotMult, annotation = input$annotationwatch, color_list = list_Color_Label, BoolCol = input$BooleanColorsFilter)
+                        VlnPlotPooled(SeuratObjsubset,gene = input$GeneListPool, typeOfNorm = input$SumorMeans, annotOrRes = input$ResOrAnnotMult, annotation = input$annotationwatch, color_list = list_Color_Label)
                       }
                       
                     })
@@ -813,9 +813,9 @@ server <- function(input, output,session) {
                         need(input$GeneListPool != "", "Choose at least one gene to display dot plot. This plot can pool some gene and get the sum of the normalized counts. \nAddModuleScore function will calculate the average expression levels of each program (cluster) on single cell level, subtracted by the aggregated expression of control feature sets. All analyzed features are binned based on averaged expression, and the control features are randomly selected from each bin.")
                       )
                       if(input$ResOrAnnotMult == "Resolution"){
-                        DotplotPooled(SeuratObjsubset,gene = input$GeneListPool, typeOfNorm = input$SumorMeans, annotOrRes = input$ResOrAnnotMult, cluster = input$clusterwatch, BoolColScales = input$colorScalePooled, colorScale = input$colorPickColPooled)
+                        DotplotPooled(SeuratObjsubset,gene = input$GeneListPool, typeOfNorm = input$SumorMeans, annotOrRes = input$ResOrAnnotMult, cluster = input$clusterwatch, colorScale = input$colorPickColPooled)
                       }else{
-                        DotplotPooled(SeuratObjsubset,gene = input$GeneListPool, typeOfNorm = input$SumorMeans, annotOrRes = input$ResOrAnnotMult, annotation = input$annotationwatch, BoolColScales = input$colorScalePooled, colorScale = input$colorPickColPooled)
+                        DotplotPooled(SeuratObjsubset,gene = input$GeneListPool, typeOfNorm = input$SumorMeans, annotOrRes = input$ResOrAnnotMult, annotation = input$annotationwatch, colorScale = input$colorPickColPooled)
                       }
                     })
                     
@@ -825,9 +825,9 @@ server <- function(input, output,session) {
                             content = function(file){
                                 tiff(file, width = 900 , height = 600,res = 100)
                                 print(if(input$ResOrAnnotMult == "Resolution"){
-                                  VlnPlotPooled(SeuratObjsubset,gene = input$GeneListPool, typeOfNorm = input$SumorMeans, annotOrRes = input$ResOrAnnotMult, cluster = input$clusterwatch,color_list = list_Color_Label, BoolCol = input$BooleanColorsFilter)
+                                  VlnPlotPooled(SeuratObjsubset,gene = input$GeneListPool, typeOfNorm = input$SumorMeans, annotOrRes = input$ResOrAnnotMult, cluster = input$clusterwatch,color_list = list_Color_Label)
                                 }else{
-                                  VlnPlotPooled(SeuratObjsubset,gene = input$GeneListPool, typeOfNorm = input$SumorMeans, annotOrRes = input$ResOrAnnotMult, annotation = input$annotationwatch, color_list = list_Color_Label, BoolCol = input$BooleanColorsFilter)
+                                  VlnPlotPooled(SeuratObjsubset,gene = input$GeneListPool, typeOfNorm = input$SumorMeans, annotOrRes = input$ResOrAnnotMult, annotation = input$annotationwatch, color_list = list_Color_Label)
                                 })
                                 dev.off()
                             }
@@ -839,9 +839,9 @@ server <- function(input, output,session) {
                                 svg(file, width = 14 , height = 7)
                                 print(
                                   if(input$ResOrAnnotMult == "Resolution"){
-                                    VlnPlotPooled(SeuratObjsubset,gene = input$GeneListPool, typeOfNorm = input$SumorMeans, annotOrRes = input$ResOrAnnotMult, cluster = input$clusterwatch, color_list = list_Color_Label, BoolCol = input$BooleanColorsFilter)
+                                    VlnPlotPooled(SeuratObjsubset,gene = input$GeneListPool, typeOfNorm = input$SumorMeans, annotOrRes = input$ResOrAnnotMult, cluster = input$clusterwatch, color_list = list_Color_Label)
                                   }else{
-                                    VlnPlotPooled(SeuratObjsubset,gene = input$GeneListPool, typeOfNorm = input$SumorMeans, annotOrRes = input$ResOrAnnotMult, annotation = input$annotationwatch, color_list = list_Color_Label, BoolCol = input$BooleanColorsFilter)
+                                    VlnPlotPooled(SeuratObjsubset,gene = input$GeneListPool, typeOfNorm = input$SumorMeans, annotOrRes = input$ResOrAnnotMult, annotation = input$annotationwatch, color_list = list_Color_Label)
                                   }
                                 )
                                 dev.off()
@@ -868,9 +868,9 @@ server <- function(input, output,session) {
                                 tiff(file, width = 900 , height = 600,res = 100)
                                 print(
                                   if(input$ResOrAnnotMult == "Resolution"){
-                                    DotplotPooled(SeuratObjsubset,gene = input$GeneListPool, typeOfNorm = input$SumorMeans, annotOrRes = input$ResOrAnnotMult, cluster = input$clusterwatch, BoolColScales = input$colorScalePooled, colorScale = input$colorPickColPooled)
+                                    DotplotPooled(SeuratObjsubset,gene = input$GeneListPool, typeOfNorm = input$SumorMeans, annotOrRes = input$ResOrAnnotMult, cluster = input$clusterwatch, colorScale = input$colorPickColPooled)
                                   }else{
-                                    DotplotPooled(SeuratObjsubset,gene = input$GeneListPool, typeOfNorm = input$SumorMeans, annotOrRes = input$ResOrAnnotMult, annotation = input$annotationwatch, BoolColScales = input$colorScalePooled, colorScale = input$colorPickColPooled)
+                                    DotplotPooled(SeuratObjsubset,gene = input$GeneListPool, typeOfNorm = input$SumorMeans, annotOrRes = input$ResOrAnnotMult, annotation = input$annotationwatch, colorScale = input$colorPickColPooled)
                                   }
                                 )
                                 dev.off()
@@ -883,9 +883,9 @@ server <- function(input, output,session) {
                                 svg(file, width = 14 , height = 7)
                                 print(
                                   if(input$ResOrAnnotMult == "Resolution"){
-                                    DotplotPooled(SeuratObjsubset,gene = input$GeneListPool, typeOfNorm = input$SumorMeans, annotOrRes = input$ResOrAnnotMult, cluster = input$clusterwatch, BoolColScales = input$colorScalePooled, colorScale = input$colorPickColPooled)
+                                    DotplotPooled(SeuratObjsubset,gene = input$GeneListPool, typeOfNorm = input$SumorMeans, annotOrRes = input$ResOrAnnotMult, cluster = input$clusterwatch, colorScale = input$colorPickColPooled)
                                   }else{
-                                    DotplotPooled(SeuratObjsubset,gene = input$GeneListPool, typeOfNorm = input$SumorMeans, annotOrRes = input$ResOrAnnotMult, annotation = input$annotationwatch, BoolColScales = input$colorScalePooled, colorScale = input$colorPickColPooled)
+                                    DotplotPooled(SeuratObjsubset,gene = input$GeneListPool, typeOfNorm = input$SumorMeans, annotOrRes = input$ResOrAnnotMult, annotation = input$annotationwatch, colorScale = input$colorPickColPooled)
                                   }
                                 )
                                 dev.off()
@@ -995,9 +995,9 @@ server <- function(input, output,session) {
                       need(input$fileGeneList,"Choose a file that contain a list of genes to display the projection.")
                     )
                     if(input$ResOrAnnotMult == "Resolution"){
-                      VlnPlotPooled(obj = SeuratObjsubset, typeOfNorm = input$SumorMeans, annotOrRes = input$ResOrAnnotMult, file = input$fileGeneList, cluster = input$clusterwatch, color_list = list_Color_Label, BoolCol = input$BooleanColorsFilter) 
+                      VlnPlotPooled(obj = SeuratObjsubset, typeOfNorm = input$SumorMeans, annotOrRes = input$ResOrAnnotMult, file = input$fileGeneList, cluster = input$clusterwatch, color_list = list_Color_Label) 
                     }else{
-                      VlnPlotPooled(obj = SeuratObjsubset, typeOfNorm = input$SumorMeans, annotOrRes = input$ResOrAnnotMult, file = input$fileGeneList, annotation = input$annotationwatch, color_list = list_Color_Label, BoolCol = input$BooleanColorsFilter) 
+                      VlnPlotPooled(obj = SeuratObjsubset, typeOfNorm = input$SumorMeans, annotOrRes = input$ResOrAnnotMult, file = input$fileGeneList, annotation = input$annotationwatch, color_list = list_Color_Label) 
                     }
                   })
                     
@@ -1007,9 +1007,9 @@ server <- function(input, output,session) {
                       need(input$fileGeneList,"Choose a file that contain a list of genes to display the projection.")
                     )
                     if(input$ResOrAnnotMult == "Resolution"){
-                      DotplotPooled(obj = SeuratObjsubset, typeOfNorm = input$SumorMeans, annotOrRes = input$ResOrAnnotMult, file = input$fileGeneList, cluster = input$clusterwatch, BoolColScales = input$colorScalePooled, colorScale = input$colorPickColPooled) 
+                      DotplotPooled(obj = SeuratObjsubset, typeOfNorm = input$SumorMeans, annotOrRes = input$ResOrAnnotMult, file = input$fileGeneList, cluster = input$clusterwatch, colorScale = input$colorPickColPooled) 
                     }else{
-                      DotplotPooled(obj = SeuratObjsubset, typeOfNorm = input$SumorMeans, annotOrRes = input$ResOrAnnotMult, file = input$fileGeneList, annotation = input$annotationwatch, BoolColScales = input$colorScalePooled, colorScale = input$colorPickColPooled) 
+                      DotplotPooled(obj = SeuratObjsubset, typeOfNorm = input$SumorMeans, annotOrRes = input$ResOrAnnotMult, file = input$fileGeneList, annotation = input$annotationwatch, colorScale = input$colorPickColPooled) 
                     }
                   })
                   
@@ -1019,9 +1019,9 @@ server <- function(input, output,session) {
                           content = function(file){
                               tiff(file, width = 900 , height = 600,res = 100)
                               print(if(input$ResOrAnnotMult == "Resolution"){
-                                VlnPlotPooled(obj = SeuratObjsubset, typeOfNorm = input$SumorMeans, annotOrRes = input$ResOrAnnotMult, file = input$fileGeneList, cluster = input$clusterwatch, BoolCol = input$BooleanColorsFilter ) 
+                                VlnPlotPooled(obj = SeuratObjsubset, typeOfNorm = input$SumorMeans, annotOrRes = input$ResOrAnnotMult, file = input$fileGeneList, cluster = input$clusterwatch ) 
                               }else{
-                                VlnPlotPooled(obj = SeuratObjsubset, typeOfNorm = input$SumorMeans, annotOrRes = input$ResOrAnnotMult, file = input$fileGeneList, annotation = input$annotationwatch, BoolCol = input$BooleanColorsFilter) 
+                                VlnPlotPooled(obj = SeuratObjsubset, typeOfNorm = input$SumorMeans, annotOrRes = input$ResOrAnnotMult, file = input$fileGeneList, annotation = input$annotationwatch) 
                               })
                               dev.off()
                           }
@@ -1033,9 +1033,9 @@ server <- function(input, output,session) {
                               svg(file, width = 14 , height = 7)
                               print(
                                 if(input$ResOrAnnotMult == "Resolution"){
-                                  VlnPlotPooled(obj = SeuratObjsubset, typeOfNorm = input$SumorMeans, annotOrRes = input$ResOrAnnotMult, file = input$fileGeneList, cluster = input$clusterwatch, color_list = list_Color_Label, BoolCol = input$BooleanColorsFilter ) 
+                                  VlnPlotPooled(obj = SeuratObjsubset, typeOfNorm = input$SumorMeans, annotOrRes = input$ResOrAnnotMult, file = input$fileGeneList, cluster = input$clusterwatch, color_list = list_Color_Label ) 
                                 }else{
-                                  VlnPlotPooled(obj = SeuratObjsubset, typeOfNorm = input$SumorMeans, annotOrRes = input$ResOrAnnotMult, file = input$fileGeneList, annotation = input$annotationwatch, color_list = list_Color_Label, BoolCol = input$BooleanColorsFilter) 
+                                  VlnPlotPooled(obj = SeuratObjsubset, typeOfNorm = input$SumorMeans, annotOrRes = input$ResOrAnnotMult, file = input$fileGeneList, annotation = input$annotationwatch, color_list = list_Color_Label) 
                                 }
                               )
                               dev.off()
@@ -1076,9 +1076,9 @@ server <- function(input, output,session) {
                               svg(file, width = 14 , height = 7)
                               print(
                                 if(input$ResOrAnnotMult == "Resolution"){
-                                  DotplotPooled(obj = SeuratObjsubset, typeOfNorm = input$SumorMeans, annotOrRes = input$ResOrAnnotMult, file = input$fileGeneList, cluster = input$clusterwatch, BoolColScales = input$colorScalePooled, colorScale = input$colorPickColPooled) 
+                                  DotplotPooled(obj = SeuratObjsubset, typeOfNorm = input$SumorMeans, annotOrRes = input$ResOrAnnotMult, file = input$fileGeneList, cluster = input$clusterwatch, colorScale = input$colorPickColPooled) 
                                 }else{
-                                  DotplotPooled(obj = SeuratObjsubset, typeOfNorm = input$SumorMeans, annotOrRes = input$ResOrAnnotMult, file = input$fileGeneList, annotation = input$annotationwatch, BoolColScales = input$colorScalePooled, colorScale = input$colorPickColPooled) 
+                                  DotplotPooled(obj = SeuratObjsubset, typeOfNorm = input$SumorMeans, annotOrRes = input$ResOrAnnotMult, file = input$fileGeneList, annotation = input$annotationwatch, colorScale = input$colorPickColPooled) 
                                 }
                               )
                               dev.off()

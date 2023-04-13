@@ -63,7 +63,7 @@ ui <- fluidPage(
                                 numericInput("percentMito", "Percent-mito max per cells : ", min = 0, max = 100, value = 25),
                                 numericInput("minGenePerCells","Minimum number of genes expressed per cells : ", min = 0, max = 2500, value = 500, step = 100),
                                 numericInput("maxGenePerCells","Maximum number of genes expressed per cells : ", min = 1000, value = 4500, step = 100),
-                                numericInput("maxCountPerCells","Maximum number of reads by cells : ", min = 20000, value = 40000, step = 2000),
+                                numericInput("maxCountPerCells","Maximum number of counts/UMI by cells : ", min = 20000, value = 40000, step = 2000),
                                 radioButtons("normalization", "What kind of normalization do you want to use on your data : ", choices = c("SCTransform","LogNormalisation")),
                                 sliderInput("Resolution","Minimum and maximum resolution for clustering : ", min = 0, max = 5, value= c(0,1),step = 0.05),
                                 numericInput("ResolutionStep", "Resolution step : ", min = 0.05, max = 1, value = 0.1, step = 0.05),
