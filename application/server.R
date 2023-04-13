@@ -2546,7 +2546,7 @@ server <- function(input, output,session) {
                     output$downloadMatrixInformation <- downloadHandler(
                         filename = "Information_Matrix.csv",
                         content = function(file){
-                            write.csv(Table2Render(),file)
+                            write.csv(Table2Render(seuratObj, cluster = input$clusterInfo, VariablePlot = input$chooseVar2Plot, NbCluster = input$clusterNumber),file)
                         }
                     )
                 })
