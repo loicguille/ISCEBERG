@@ -93,7 +93,7 @@ ui <- fluidPage(
                                            plotOutput("cellcycle"),
                                            fluidRow(column(3,downloadButton("download_cell_cycle", "Download UMAP")), column(3, checkboxInput("showlabelcc","Add label to plot", value = TRUE))),
                                            plotOutput("plotchoiceFilter"),
-                                           fluidRow(column(3,downloadButton("download_choice_filter", "Download UMAP")), column(3, checkboxInput("showlabelfilter","Add label to plot", value = TRUE)),column(3, numericInput("pointSizeBatch", "Point size",min = 0.25, max = 5 , value = 0.5, step = 0.25 )) ),
+                                           fluidRow(column(3,downloadButton("download_choice_filter", "Download UMAP")), column(3, checkboxInput("showlabelfilter","Add label to plot", value = TRUE)),column(3, numericInput("pointSizeBatch", "Point size",min = 0.25, max = 5 , value = 0.5, step = 0.25 ))),
                                            plotOutput("clusteringPlot"),
                                            fluidRow(column(3,downloadButton("download_clustering_plot", "Download UMAP")), column(3, checkboxInput("showlabelcluster","Add label to plot", value = TRUE)))
                                            ),
@@ -124,21 +124,29 @@ ui <- fluidPage(
                             mainPanel(
                                 fluidRow(
                                     column(6,
-                                        plotOutput("featureQC"),
-                                        downloadButton('downloadVln', "Download plot"),
-                                        plotOutput("cellcycleQC"),
-                                        fluidRow(column(3,downloadButton('downloadUMAP_CC', "Download UMAP")),column(3,checkboxInput("showlabelccQC","Add label to plot", value = TRUE))),
-                                        plotOutput("plotClusterQC"),
-                                        fluidRow(column(3,downloadButton('downloadUMAP_resolution_qc', "Download UMAP")), column(3, checkboxInput("addlabels_res", " Add labels to plot", value = TRUE)))
+                                           plotOutput("NfeatureQC"),
+                                           downloadButton('downloadVlnFeature', "Download plot"),
+                                           plotOutput("Pct_MT"),
+                                           downloadButton('downloadVlnPct', "Download plot"),
+                                           plotOutput("cellcycleQC"),
+                                           fluidRow(column(3,downloadButton('downloadUMAP_CC', "Download UMAP")),column(3,checkboxInput("showlabelccQC","Add label to plot", value = TRUE))),
+                                           plotOutput("geneExpByCellQC"),
+                                           fluidRow(column(3,downloadButton('downloadUMAP_gene_by_cell', "Download UMAP")),column(3, numericInput("pointSizeNbCellQC", "Point size",min = 0.25, max = 5 , value = 0.5, step = 0.25 ))),
+                                           plotOutput("plotClusterQC"),
+                                           fluidRow(column(3,downloadButton('downloadUMAP_resolution_qc', "Download UMAP")), column(3, checkboxInput("addlabels_res", " Add labels to plot", value = TRUE)))
                                     ),
                                     column(6,
-                                       plotOutput("nbcells_by_datasetsQC"),
-                                       downloadButton('downloadHistNbCells', "Download plot"),
-                                       plotOutput("geneExpByCellQC"),
-                                      fluidRow(column(3,downloadButton('downloadUMAP_gene_by_cell', "Download UMAP")),column(3, numericInput("pointSizeNbCellQC", "Point size",min = 0.25, max = 5 , value = 0.5, step = 0.25 ))),
-                                       plotOutput("plotChoice"),
-                                       fluidRow(column(3,downloadButton('downloadUMAP_choice', "Download UMAP")), column(3, checkboxInput("addlabels_choice", " Add labels to plot", value = TRUE)), column(3, numericInput("sizePoint_choice", "Point size",min = 0.25, max = 5 , value = 0.5, step = 0.25 )) )))
+                                           plotOutput("nUMI_QC"),
+                                           downloadButton('downloadVlnCount', "Download plot"),
+                                           plotOutput("plotChoice"),
+                                           fluidRow(column(3,downloadButton('downloadUMAP_choice', "Download UMAP")), column(3, checkboxInput("addlabels_choice", " Add labels to plot", value = TRUE)), column(3, numericInput("sizePoint_choice", "Point size",min = 0.25, max = 5 , value = 0.5, step = 0.25 ))),
+                                           plotOutput("nbcells_by_datasetsQC"),
+                                           downloadButton('downloadHistNbCells', "Download plot"),
+                                           dataTableOutput("Number_of_gene"),
+                                           fluidRow(column(3, selectizeInput("metadata","Metadata for mean gene number :",choices = character(0))), column(3, downloadButton("download_datatable_mean_gene","Download table"))),
+                                        ),
                                 )
+                              )  
                         )
                ),
                tabPanel("Cluster tree", icon = icon("sitemap"),

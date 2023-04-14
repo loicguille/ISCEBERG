@@ -1655,21 +1655,47 @@ server <- function(input, output,session) {
             ####################################
             available_metadata <- colnames(seuratObj@meta.data)
             available_metadata <- available_metadata[-which(available_metadata %in% c("nCount_RNA","nFeature_RNA","percent.mt","S.Score", "G2M.Score","nCount_SCT", "nFeature_SCT"))]
+            updateSelectizeInput(session, "metadata", choices = available_metadata, server = TRUE)
             updateSelectizeInput(session, "InfoToPlot", choices= available_metadata, server=TRUE)
             observe({
               shinyjs::toggleState("downloadColorFile", input$BooleanColors != FALSE)
             })
             ## Violin plot on data
-            output$featureQC <- renderPlot({
-                makeVlnGreatAgain(seuratObj,  grouping = "orig.ident",var = c("nFeature_RNA","nCount_RNA","percent.mt"), col = 3) 
+            output$NfeatureQC <- renderPlot({
+              VlnPlot(seuratObj, group.by = "orig.ident", features = "nFeature_RNA", pt.size = 0)
             })
-            output$downloadVln<- downloadHandler(
-              filename="Violin_QC.tiff",
+            output$nUMI_QC <- renderPlot({
+              VlnPlot(seuratObj, group.by = "orig.ident", features = "nCount_RNA", pt.size = 0)
+            })
+            output$Pct_MT <- renderPlot({
+              VlnPlot(seuratObj, group.by = "orig.ident", features = "percent.mt", pt.size = 0)
+            })
+            
+            output$downloadVlnFeature<- downloadHandler(
+              filename="ViolinFeature_QC.tiff",
               content=function(file){
                 tiff(file, width = 900 , height = 600,res = 100)
-                print(makeVlnGreatAgain(seuratObj, grouping = "orig.ident", var=c("nFeature_RNA","nCount_RNA","percent.mt"), col = 3))
+                print(VlnPlot(seuratObj, group.by = "orig.ident", features = "nFeature_RNA", pt.size = 0))
                 dev.off()
-              })
+              }
+            )
+            
+            output$downloadVlnCount<- downloadHandler(
+              filename="ViolinFeature_QC.tiff",
+              content=function(file){
+                tiff(file, width = 900 , height = 600,res = 100)
+                print(VlnPlot(seuratObj, group.by = "orig.ident", features = "nCount_RNA", pt.size = 0))
+                dev.off()
+              }
+            )
+            output$downloadVlnPct<- downloadHandler(
+              filename="ViolinFeature_QC.tiff",
+              content=function(file){
+                tiff(file, width = 900 , height = 600,res = 100)
+                print(VlnPlot(seuratObj, group.by = "orig.ident", features = "percent.mt", pt.size = 0))
+                dev.off()
+              }
+            )
             
             ## QC resolution
             output$plotClusterQC <- renderPlot({
@@ -1721,6 +1747,19 @@ server <- function(input, output,session) {
                 print(UmapNbGenesCell(seuratObj, sizePoint = input$pointSizeNbCellQC))
                 dev.off()
               })
+            
+            ## Table Nb gene by cell 
+            output$Number_of_gene <-renderDataTable({
+              DataTableGenebyResorAnnot(obj = seuratObj, metadata = input$metadata)
+              
+            })
+            
+            output$download_datatable_mean_gene <- downloadHandler(
+              filename = "Gene_expressed_by_metadata.csv",
+              content = function(file){
+                write.csv(DataTableGenebyResorAnnot(obj = seuratObj, metadata = input$metadata),file)
+              }
+            )
             
             list_Color_Label <- list()
             ### Color changer recursively  

@@ -47,3 +47,12 @@ Plotnbcellsbeforeafter <- function(objBefore, objAfter){#Get the number of cells
   dfNbcells <- data.frame(time = c("before_filtering", "after_filtering"),nb_cells = c(dim(objBefore)[2],dim(objAfter)[2]))
   ggplot(dfNbcells,aes(x= time, y = nb_cells, fill = time))+geom_bar(stat = "identity")+scale_x_discrete(limits=c("before_filtering", "after_filtering"))+ggtitle("Impact of filtering on the number of cells")+geom_text(aes(label=nb_cells), position=position_dodge(width=0.9), vjust=-0.25)+theme_cowplot()
 }
+
+DataTableGenebyResorAnnot <- function(obj, metadata){
+  expressed_cells <- cbind.data.frame(counts=colSums(obj@assays$RNA@data > 0),obj[[metadata]])
+  colnames(expressed_cells) <- c("counts","value")
+  dataTable <- aggregate(expressed_cells$counts, list(expressed_cells$value), FUN=mean)
+  colnames(dataTable) <- c(metadata,"mean_expressed_nb_gene")
+  dataTable$mean_expressed_nb_gene <- round(dataTable$mean_expressed_nb_gene)
+  dataTable <- as.data.frame(dataTable)
+}

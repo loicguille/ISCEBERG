@@ -28,15 +28,7 @@ vizu_UMAP <- function(obj, var, dlabel = TRUE, color = NULL, color_list = NULL, 
   DimPlot(obj,group.by = var, label = dlabel, label.size = 6, cols = color, pt.size = sizePoint)
 }
 
-# nbCellsbydt <- function(obj){#Get graph of number of cells by datasets
-#   cells_by_dt <- data.frame(table(obj$orig.ident))
-#   ggplot(cells_by_dt,aes(Var1,Freq, fill=Var1))+geom_bar(stat = "identity")+ggtitle("Number of cells by datasets")+geom_text(aes(label=Freq), position=position_dodge(width=0.9), vjust=-0.25)+theme_cowplot()
-# }
 
-
-makeVlnGreatAgain <- function(obj,var, grouping, col = 1){ #Create violin plot for features and group by the annotation/resolution needed
-  VlnPlot(object = obj, features = var, group.by = grouping, ncol = col, pt.size = 0)
-}
 
 MakeUMAPhighlight <- function( obj, highliht_cells , sizePoint = 0.5, sizeHighlight = 0.25){# Create UMAP highlight for keeping an eye on what will be subsetted, the size of the point can be change. 
   DimPlot(obj, cells.highlight = highliht_cells, order = T,pt.size = sizePoint,sizes.highlight = sizeHighlight)+scale_color_manual(labels = c("Not kept","Kept"), values = c("gray","red"))+theme(legend.text = element_text(size = 10))
