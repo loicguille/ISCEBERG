@@ -46,10 +46,6 @@ MakeComplicatedVln <- function(obj, Giventitle, var, minGenePerCell, maxGenePerC
   grid.arrange(nfeat,ncount,pmt,nrow=1, top = textGrob(Giventitle, gp =gpar(col="black", fontsize =20, fontface ="bold"))) ## arrange all the plot between them
 }
 
-# Plotnbcellsbeforeafter <- function(objBefore, objAfter){#Get the number of cells before and after filtering of the data
-#   dfNbcells <- data.frame(time = c("before_filtering", "after_filtering"),nb_cells = c(dim(objBefore)[2],dim(objAfter)[2]))
-#   ggplot(dfNbcells,aes(x= time, y = nb_cells, fill = time))+geom_bar(stat = "identity")+scale_x_discrete(limits=c("before_filtering", "after_filtering"))+ggtitle("Impact of filtering on the number of cells")+geom_text(aes(label=nb_cells), position=position_dodge(width=0.9), vjust=-0.25)+theme_cowplot()
-# }
 
 
 ### Encapsulation of findMarkers function for the Differential expression page, all the parameter will be passed to this function. 

@@ -78,7 +78,7 @@ server <- function(input, output,session) {
         shinyjs::show("Refresh")
         shinyjs::disable("Refresh")
         #Hide all buttons from first page so the user will need to reload the page if he want to see another file
-        for(i in c("createSeurat","choiceFile","file","listFiles","header","separator","GeneFile","CellsFile","MatrixFile","InputFile","Metadata","MinGeneByCells","MinCells","download_barplot_before_after","InfoToPlotFilter","BooleanColorsFilter","downloadColorFileFilter","download_cell_cycle","download_choice_filter","download_clustering_plot","showlabelcc", "showlabelfilter","showlabelcluster","downloadAfterFiltering","download_nb_cells_dt","download_UMAP_nb_genes_cells","downloadbatchVizu","showlabelBatch", "FeatureName","Scina_annot_DL","Probabilities_Dl","Proba_selection","pointSizeNbCell","pointSizeBatch")){
+        for(i in c("createSeurat","choiceFile","file","listFiles","header","separator","GeneFile","CellsFile","MatrixFile","InputFile","Metadata","MinGeneByCells","MinCells","download_barplot_before_after","InfoToPlotFilter","BooleanColorsFilter","downloadColorFileFilter","download_cell_cycle","download_choice_filter","download_clustering_plot","showlabelcc", "showlabelfilter","showlabelcluster","downloadAfterFiltering","download_nb_cells_dt","download_UMAP_nb_genes_cells","downloadbatchVizu","showlabelBatch", "FeatureName","Scina_annot_DL","Probabilities_Dl","Proba_selection","pointSizeNbCell","pointSizeBatch", "download_datatable_mean_gene_Filter", "Condition")){
           shinyjs::hide(i)
         }
         ##Loading data and create seurat object
@@ -100,20 +100,51 @@ server <- function(input, output,session) {
             if(input$file == "Txt"){
               seuratObj <- Readtxt_files(txt_files = input$InputFile, metadataFiles = input$Metadata, header = input$header, separator = input$separator, minGenebyCells = input$MinGeneByCells , minCells = input$MinCells)
             }
-            seuratObj[["percent.mt"]] <- PercentageFeatureSet(seuratObj, pattern = "^mt-")
-             output$PreProcessPlot <- renderPlot({
-                makeVlnGreatAgain(seuratObj, grouping = "orig.ident",var = c("nFeature_RNA", "nCount_RNA", "percent.mt"), ncol = 3)
-            })
-            output$downloadVln<- downloadHandler(
-              filename="VlnPlot_QC.tiff",
-              content=function(file){
-                tiff(file, width = 900 , height = 600,res = 100)
-                print(makeVlnGreatAgain(seuratObj,  grouping = "orig.ident",var = c("nFeature_RNA", "nCount_RNA", "percent.mt"), ncol = 3))
-                dev.off()
-              })
+            
+          seuratObj[["percent.mt"]] <- PercentageFeatureSet(seuratObj, pattern = "^mt-")
+             
             output$BeforeFiltering <- renderPlot({
               MakeComplicatedVln(seuratObj,var = "orig.ident", "QC before subsetting datasets",  minGenePerCell = input$minGenePerCells, maxGenePerCell = input$maxGenePerCells, maxCountPerCells = input$maxCountPerCells,percentMito = input$percentMito)
             })
+            
+            output$nFeatureBeforeFilter <- renderPlot({
+              VlnWithThresholdAppearance(obj = seuratObj, var = "nFeature_RNA", threshold = c(input$minGenePerCells, input$maxGenePerCells))
+            })
+            output$downloadnFeatureBeforeFiltering <- downloadHandler(
+              filename = "VlnPlot_nFeature_before_Filt.tiff",
+              content=function(file){
+                tiff(file,width = 900 , height = 600,res = 100)
+                print(VlnWithThresholdAppearance(seuratObj,var = "nFeature_RNA", threshold = c(input$minGenePerCells, input$maxGenePerCells)))
+                dev.off()
+              }
+            )
+            
+            output$nCountBeforeFilter <- renderPlot({
+              VlnWithThresholdAppearance(obj = seuratObj, var = "nCount_RNA", threshold = input$maxCountPerCells)
+            })
+            
+            output$downloadnCountBeforeFiltering <- downloadHandler(
+              filename = "VlnPlot_nCount_before_Filt.tiff",
+              content=function(file){
+                tiff(file,width = 900 , height = 600,res = 100)
+                print(VlnWithThresholdAppearance(seuratObj,var = "nCount_RNA", threshold = input$maxCountPerCells))
+                dev.off()
+              }
+            )
+            
+            output$Pct_mtBeforeFilter <- renderPlot({
+              VlnWithThresholdAppearance(obj = seuratObj, var = "percent.mt", threshold = input$percentMito)
+            })
+            
+            output$downloadnCountBeforeFiltering <- downloadHandler(
+              filename = "VlnPlot_nCount_before_Filt.tiff",
+              content=function(file){
+                tiff(file,width = 900 , height = 600,res = 100)
+                print(VlnWithThresholdAppearance(seuratObj,var = "nCount_RNA", threshold = input$maxCountPerCells))
+                dev.off()
+              }
+            )
+            
             output$downloadBeforeFiltering<- downloadHandler(
               filename="VlnPlot_before_filt.tiff",
               content=function(file){
@@ -188,7 +219,7 @@ server <- function(input, output,session) {
                         incProgress(1/inc)
                     } 
                 })
-                for(i in c("downloadSeurat","downloadLogFile","NameSeuratLog","download_barplot_before_after","InfoToPlotFilter","BooleanColorsFilter","downloadColorFileFilter","download_cell_cycle","download_choice_filter","download_clustering_plot","showlabelcc", "showlabelfilter","showlabelcluster","downloadAfterFiltering","download_nb_cells_dt","download_UMAP_nb_genes_cells","downloadbatchVizu","showlabelBatch","pointSizeNbCell","pointSizeBatch")){
+                for(i in c("downloadSeurat","downloadLogFile","NameSeuratLog","download_barplot_before_after","InfoToPlotFilter","BooleanColorsFilter","downloadColorFileFilter","download_cell_cycle","download_choice_filter","download_clustering_plot","showlabelcc", "showlabelfilter","showlabelcluster","downloadAfterFiltering","download_nb_cells_dt","download_UMAP_nb_genes_cells","downloadbatchVizu","showlabelBatch","pointSizeNbCell","pointSizeBatch", "download_datatable_mean_gene_Filter", "Condition")){
                   shinyjs::show(i)
                 }
                 observe({
@@ -276,10 +307,13 @@ server <- function(input, output,session) {
                         shinyalert("Warning", "Cannot calculate phase because the following feature lists do not have enough features present in the object: S.Score exiting...The following feature lists do not have enough features present in the object: G2M.Score exiting...", type = "warning")
                     }
                 )
+                
                 toremove <- c(grep(names(SeuratObjsubset@meta.data),pattern ="nCount_*", value =T),grep(names(SeuratObjsubset@meta.data),pattern ="nFeature_*", value =T),"percent.mt","S.Score", "G2M.Score")
                 varAvail <- names(SeuratObjsubset@meta.data)
                 varAvail <- varAvail[-which(varAvail %in% toremove)]
                 updateSelectizeInput(session,"InfoToPlotFilter",choices = varAvail, server = TRUE)
+                updateSelectizeInput(session, "Condition", choices = varAvail, server = TRUE)
+                
                 output$AfterFiltering <- renderPlot({
                   MakeComplicatedVln(SeuratObjsubset,var = "orig.ident", "QC after subsetting datasets", minGenePerCell = input$minGenePerCells, maxGenePerCell = input$maxGenePerCells, maxCountPerCells = input$maxCountPerCells,percentMito = input$percentMito)
                 })
@@ -300,6 +334,40 @@ server <- function(input, output,session) {
                     print(vizu_UMAP(SeuratObjsubset, var=NULL, dlabel = input$showlabelcluster))
                     dev.off()
                   })
+                
+                output$nCountBeforeFilter <- renderPlot({
+                  VlnPlot(SeuratObjsubset, features = "nCount_RNA", group.by = "file", pt.size = 0)+theme(legend.position = "none")
+                })
+                output$downloadnFeatureBeforeFiltering <- downloadHandler(
+                  filename="nFeature_afterFiltering.tiff",
+                  content=function(file){
+                    tiff(file, width = 900 , height = 600,res = 100)
+                    print(VlnPlot(SeuratObjsubset, features = "nFeature_RNA", group.by = "file", pt.size = 0))
+                    dev.off()
+                  
+                })
+                
+                output$downloadnCountBeforeFiltering <- downloadHandler(
+                  filename="nCount_afterFiltering.tiff",
+                  content=function(file){
+                    tiff(file, width = 900 , height = 600,res = 100)
+                    print(VlnPlot(SeuratObjsubset, features = "nCount_RNA", group.by = "file", pt.size = 0))
+                    dev.off()
+                })
+                output$Pct_mtBeforeFilter <- downloadHandler(
+                  filename="PercentMT_afterFiltering.tiff",
+                  content=function(file){
+                    tiff(file, width = 900 , height = 600,res = 100)
+                    print(VlnPlot(SeuratObjsubset, features = "percent.mt", group.by = "file", pt.size = 0))
+                    dev.off()
+                })
+                
+                output$nFeatureBeforeFilter <- renderPlot({
+                  VlnPlot(SeuratObjsubset, features = "nFeature_RNA", group.by = "file", pt.size = 0)+theme(legend.position = "none")
+                })
+                output$Pct_mtBeforeFilter <- renderPlot({
+                  VlnPlot(SeuratObjsubset, features = "percent.mt", group.by = "file", pt.size = 0)+theme(legend.position = "none")
+                })
                 
                 output$barplotBeforeAfter <- renderPlot({
                     Plotnbcellsbeforeafter(objBefore = seuratObj,objAfter = SeuratObjsubset)
@@ -355,13 +423,21 @@ server <- function(input, output,session) {
                     dev.off()
                   })
                 
+                output$Nb_Gene_by_condition <- renderDataTable({
+                  DataTableGenebyResorAnnot(SeuratObjsubset, metadata = input$Condition)
+                })
+                
                 
                 
                 ### Color changer recursively  
                 listenColors <- reactive({list(input$BooleanColorsFilter, input$InfoToPlotFilter, input$submitAnnot)})
                 observeEvent(listenColors(),{
                   Idents(SeuratObjsubset) <- input$InfoToPlotFilter
-                  orderLevel <- sort(levels(SeuratObjsubset))
+                  if(is.na(as.numeric(as.character(levels(SeuratObjsubset)))[1]) == FALSE){ ##Here we test if the first value is numeric or not in order to sort in the goodway the condition vector
+                    orderLevel <- sort(as.numeric(levels(SeuratObjsubset)))
+                  }else{
+                    orderLevel <- sort(levels(SeuratObjsubset))
+                  }
                   if(input$BooleanColorsFilter == TRUE){
                     shinyjs::show("myPanelFilter")
                     cols <- reactive({
@@ -1766,7 +1842,11 @@ server <- function(input, output,session) {
             listenColors <- reactive({list(input$BooleanColors, input$InfoToPlot, input$submitAnnot)})
             observeEvent(listenColors(),{
               Idents(seuratObj) <- input$InfoToPlot
-              orderLevel <- sort(levels(seuratObj))
+              if(is.na(as.numeric(as.character(levels(seuratObj)))[1]) == FALSE){
+                orderLevel <- sort(as.numeric(levels(seuratObj)))
+              }else{
+                orderLevel <- sort(levels(seuratObj))
+              }
               if(input$BooleanColors == TRUE){
                 shinyjs::show("myPanel")
                 cols <- reactive({
