@@ -592,6 +592,7 @@ server <- function(input, output,session) {
                 varAvail <- names(SeuratObjsubset@meta.data)
                 varAvail <- varAvail[-which(varAvail %in% toremove)]
                 updateSelectizeInput(session, "AnnotationDataMining", choices = varAvail, server = TRUE)
+                
                 gene <- SeuratObjsubset@assays$RNA@counts@Dimnames[[1]]
                 updateSelectizeInput(session,"GeneList", choices=gene, server = TRUE)
                 updateSelectizeInput(session, "AnnotAgainst", choices=varAvail, server = T)
@@ -1759,6 +1760,7 @@ server <- function(input, output,session) {
                 hideTab(inputId = "tabs", target = "DE between clusters")
               }
             }
+            assay_used <- DefaultAssay(seuratObj)
             available_metadata <- colnames(seuratObj@meta.data)
             available_metadata <- available_metadata[-which(available_metadata %in% c("nCount_RNA","nFeature_RNA","percent.mt","S.Score", "G2M.Score","nCount_SCT", "nFeature_SCT"))]
             updateSelectizeInput(session, "metadata", choices = available_metadata, server = TRUE)
@@ -2044,7 +2046,7 @@ server <- function(input, output,session) {
             varAvail <- varAvail[-which(varAvail %in% toremove)]
             updateSelectizeInput(session, "AnnotationDataMining", choices = varAvail, server = TRUE)
             updateSelectizeInput(session, "AnnotAgainst", choices = varAvail, server = TRUE)
-            gene <- seuratObj@assays$RNA@counts@Dimnames[[1]]
+            gene <- seuratObj@assays[[assay_used]]@data@Dimnames[[1]]
             updateSelectizeInput(session,"GeneList", choices=gene, server = TRUE)
             toListen <- reactive({list(input$ResolutionDataMining, input$AnnotationDataMining, input$format)})
             observeEvent(toListen(),{
