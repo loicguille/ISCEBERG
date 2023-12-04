@@ -33,8 +33,8 @@ ui <- fluidPage(
                         sidebarLayout(
                             sidebarPanel(
                                 radioButtons("file", "Type of file", choices = c("Mtx","CSV","H5","RDS","Txt"), selected = NULL),
-                                conditionalPanel(condition = "input.file != 'Mtx'",fileInput("InputFile", "Upload file (don't forget to load the data once this is over)", multiple = TRUE), fileInput("Metadata", "Would you add metadata ? (optional)", multiple = TRUE)),
-                                conditionalPanel(condition = "input.file == 'Mtx' ", fileInput("MatrixFile", "Upload Matrix", multiple = TRUE), fileInput("GeneFile", "Upload gene or feature file", multiple = TRUE), fileInput("CellsFile", "Upload barcode", multiple = TRUE), radioButtons("FeatureName", "Feature identification", choices = c("Gene Symbol", "EnsemblID"))),
+                                conditionalPanel(condition = "input.file != 'Mtx'",fileInput("InputFile", "Upload file (don't forget to load the data once this is over)", multiple = TRUE),fileInput("Metadata", "Add metadata file ? (optional)", multiple = TRUE)),
+                                conditionalPanel(condition = "input.file == 'Mtx' ", fileInput("MatrixFile", "Upload Matrix", multiple = TRUE), fileInput("GeneFile", "Upload gene or feature file", multiple = TRUE), fileInput("CellsFile", "Upload barcode", multiple = TRUE), fileInput("Metadata", "Add metadata file ? (optional)", multiple = TRUE),radioButtons("FeatureName", "Feature identification", choices = c("Gene Symbol", "EnsemblID"))),
                                 conditionalPanel(condition = "input.file == 'CSV'  | input.file == 'Txt' ", radioButtons("header", "Is the file(s) containing header(s) ?", choices =c("Yes", "No")),radioButtons("separator", "What is the separator of your file ?", choices = c(",", ";","tab"))),
                                 br(),
                                 conditionalPanel(condition = "input.file != 'RDS' ", numericInput("MinGeneByCells", "Minimum number of different cell where a gene has to be found", min = 0,max = 100 , value = 3),numericInput("MinCells", "How many genes a cells has to express to be kept", value = 100, min = 0, max = 1000, step = 10)),
@@ -65,6 +65,10 @@ ui <- fluidPage(
                                 numericInput("maxGenePerCells","Maximum number of genes expressed per cells : ", min = 1000, value = 4500, step = 100),
                                 numericInput("maxCountPerCells","Maximum number of reads by cells : ", min = 20000, value = 40000, step = 2000),
                                 radioButtons("normalization", "What kind of normalization do you want to use on your data : ", choices = c("SCTransform","LogNormalisation")),
+                                checkboxInput("integration","Perform integration",value = FALSE),
+                                conditionalPanel("input.integration == 1", selectInput("integMethod","Which method perform",choices = c("Seurat","STACAS","harmony"), multiple = TRUE)),
+                                conditionalPanel("input.integration == 1 && input.integMethod.includes('harmony')",selectizeInput("var2regress","Which variable has to be regress (harmony) :", choices = character(0))),
+                                conditionalPanel("input.integration == 1 && input.integMethod.includes('Seurat')",radioButtons("ccaORrpca","Type of batch correction (Seurat method) :", choices = c("cca","rpca"))),
                                 sliderInput("Resolution","Minimum and maximum resolution for clustering : ", min = 0, max = 5, value= c(0,1),step = 0.05),
                                 numericInput("ResolutionStep", "Resolution step : ", min = 0.05, max = 1, value = 0.1, step = 0.05),
                                 actionButton("runFiltNorm", "Run analysis"),
@@ -91,11 +95,13 @@ ui <- fluidPage(
                                            plotOutput("barplotBeforeAfter"),
                                            downloadButton("download_barplot_before_after", "Download plot"),
                                            plotOutput("cellcycle"),
-                                           fluidRow(column(3,downloadButton("download_cell_cycle", "Download UMAP")), column(3, checkboxInput("showlabelcc","Add label to plot", value = TRUE))),
+                                           fluidRow(column(3,downloadButton("download_cell_cycle", "Download UMAP")), column(3, checkboxInput("showlabelcc","Add label to plot", value = TRUE)),  column(3,selectizeInput("coordinateUmapCellCycle","UMAP coordinate",choices = character(0)))),
+                                           plotOutput("UMAP_percent.mito"),
+                                           fluidRow(column(3,downloadButton('downloadUMAP_PercentMt', "Download UMAP")), column(3,selectizeInput("coordinateUmapPercentMt","UMAP coordinate",choices = character(0)))),
                                            plotOutput("plotchoiceFilter"),
                                            fluidRow(column(3,downloadButton("download_choice_filter", "Download UMAP")), column(3, checkboxInput("showlabelfilter","Add label to plot", value = TRUE)),column(3, numericInput("pointSizeBatch", "Point size",min = 0.25, max = 5 , value = 0.5, step = 0.25 )) ),
                                            plotOutput("clusteringPlot"),
-                                           fluidRow(column(3,downloadButton("download_clustering_plot", "Download UMAP")), column(3, checkboxInput("showlabelcluster","Add label to plot", value = TRUE)))
+                                           fluidRow(column(3,downloadButton("download_clustering_plot", "Download UMAP")), column(3, checkboxInput("showlabelcluster","Add label to plot", value = TRUE)),  column(3,selectizeInput("coordinateUmapCluster","UMAP coordinate",choices = character(0))))
                                            ),
                                     column(6,
                                            plotOutput("AfterFiltering"),
@@ -103,10 +109,12 @@ ui <- fluidPage(
                                            plotOutput("nbcells_by_datasets"),
                                            downloadButton("download_nb_cells_dt", "Download plot"),
                                            plotOutput("geneExpByCell"),
-                                           fluidRow(column(3,downloadButton("download_UMAP_nb_genes_cells", "Download UMAP")),column(3, numericInput("pointSizeNbCell", "Point size",min = 0.25, max = 5 , value = 0.5, step = 0.25 ))),
+                                           fluidRow(column(3,downloadButton("download_UMAP_nb_genes_cells", "Download UMAP")), column(3,selectizeInput("coordinateUmapNbGene","UMAP coordinate",choices = character(0)))),
+                                           plotOutput("UMAP_nCount_RNA"),
+                                           fluidRow(column(3,downloadButton('downloadUMAP_nCountRNA', "Download UMAP")), column(3,selectizeInput("coordinateUmapNbCount","UMAP coordinate",choices = character(0)))),
                                            plotOutput("BatchVizu"),
-                                           fluidRow(column(3,downloadButton("downloadbatchVizu", "Download plot")), column(3,checkboxInput("showlabelBatch","Add label to plot", value = TRUE))),
-                                           
+                                           fluidRow(column(3,downloadButton("downloadbatchVizu", "Download plot")), column(3,checkboxInput("showlabelBatch","Add label to plot", value = TRUE)), column(3,selectizeInput("coordinateUmapBatch","UMAP coordinate",choices = character(0)))),
+                                           plotOutput("testBatchCorrection"),
                                     )
                                 
                             )
@@ -128,16 +136,20 @@ ui <- fluidPage(
                                         downloadButton('downloadVln', "Download plot"),
                                         plotOutput("cellcycleQC"),
                                         fluidRow(column(3,downloadButton('downloadUMAP_CC', "Download UMAP")),column(3,checkboxInput("showlabelccQC","Add label to plot", value = TRUE))),
+                                        plotOutput("UMAP_percent.mito_QC"),
+                                        fluidRow(column(3,downloadButton('downloadUMAP_Percent.mt', "Download UMAP"))),
                                         plotOutput("plotClusterQC"),
                                         fluidRow(column(3,downloadButton('downloadUMAP_resolution_qc', "Download UMAP")), column(3, checkboxInput("addlabels_res", " Add labels to plot", value = TRUE)))
                                     ),
                                     column(6,
-                                       plotOutput("nbcells_by_datasetsQC"),
-                                       downloadButton('downloadHistNbCells', "Download plot"),
-                                       plotOutput("geneExpByCellQC"),
-                                      fluidRow(column(3,downloadButton('downloadUMAP_gene_by_cell', "Download UMAP")),column(3, numericInput("pointSizeNbCellQC", "Point size",min = 0.25, max = 5 , value = 0.5, step = 0.25 ))),
-                                       plotOutput("plotChoice"),
-                                       fluidRow(column(3,downloadButton('downloadUMAP_choice', "Download UMAP")), column(3, checkboxInput("addlabels_choice", " Add labels to plot", value = TRUE)), column(3, numericInput("sizePoint_choice", "Point size",min = 0.25, max = 5 , value = 0.5, step = 0.25 )) )))
+                                      plotOutput("nbcells_by_datasetsQC"),
+                                      downloadButton('downloadHistNbCells', "Download plot"),
+                                      plotOutput("geneExpByCellQC"),
+                                      fluidRow(column(3,downloadButton('downloadUMAP_gene_by_cell', "Download UMAP"))),
+                                      plotOutput("UMAP_nCount_RNA_QC"),
+                                      fluidRow(column(3,downloadButton('downloadUMAP_nCount_RNA', "Download UMAP"))),
+                                      plotOutput("plotChoice"),
+                                      fluidRow(column(3,downloadButton('downloadUMAP_choice', "Download UMAP")), column(3, checkboxInput("addlabels_choice", " Add labels to plot", value = TRUE)), column(3, numericInput("sizePoint_choice", "Point size",min = 0.25, max = 5 , value = 0.5, step = 0.25 )) )))
                                 )
                         )
                ),
@@ -422,10 +434,10 @@ ui <- fluidPage(
                           mainPanel(
                             fluidRow(column(6,
                                             plotOutput("Results_annotation"),
-                                            fluidRow(column(3,downloadButton("Scina_annot_DL", "Download UMAP")))),
+                                            fluidRow(column(3,downloadButton("Scina_annot_DL", "Download UMAP")),column(3,numericInput("SizeCellsScinaAnnot","Cells size", min= 0, max =5,step = 0.5, value = 1)))),
                                      column(6,
                                             plotOutput("Probabilities"),
-                                            fluidRow(column(3,downloadButton("Probabilities_Dl", "Download UMAP")), column(3,selectizeInput("Proba_selection","Select a cell type to plot", choices = character(0)))))
+                                            fluidRow(column(3,downloadButton("Probabilities_Dl", "Download UMAP")),column(3,numericInput("SizeCellsScinaProba","Cells size", min= 0, max =5,step = 0.5, value = 1)), column(3,selectizeInput("Proba_selection","Select a cell type to plot", choices = character(0)))))
                                      ),
                             htmlOutput("FileExplanation"),
                           )

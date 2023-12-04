@@ -11,6 +11,10 @@ library(grid)
 library(dplyr)
 library(gridExtra)
 
+#obj = seurat object, cluster = cluster chosen for focus, StackedBarPlot = Boolean, VariablePlot = variable to display in order to do the graph,
+#NbCluster = cluster available for focus, freqOrValues = boolean to get or frequence or values, color_list = color list to apply on each condition,
+#BoolCol = Boolean will be set to yes if the color has been changed
+
 Plot2Render <- function(obj,cluster,StackedBarPlot,VariablePlot, NbCluster, freqOrValues, color = NULL, color_list = NULL, BoolCol = FALSE){
   if(!is.null(color_list[[VariablePlot]]$color) && BoolCol == TRUE){
     color <- unlist(color_list[[VariablePlot]]$color)

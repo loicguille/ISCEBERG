@@ -17,11 +17,11 @@ nbCellsbydt <- function(obj){#Get graph of number of cells by datasets
   ggplot(cells_by_dt,aes(Var1,Freq, fill=Var1))+geom_bar(stat = "identity")+ggtitle("Number of cells by datasets")+geom_text(aes(label=Freq), position=position_dodge(width=0.9), vjust=-0.25)+theme_cowplot()+theme(axis.text.x = element_text(angle = 60, vjust = 0.5, hjust=1))
 }
 
-UmapNbGenesCell <- function(obj, sizePoint){#Get umap with number of genes by cells. 
-  coord_Umap <- Embeddings(obj[["umap"]])[,1:2]
-  expressed_cells <- cbind.data.frame(counts=colSums(obj@assays$RNA@data > 0),coord_Umap)
-  ggplot(expressed_cells, aes(UMAP_1,UMAP_2, color = counts))+geom_point(shape =20, size=sizePoint)+scale_color_gradient(low="lightgrey", high="blue")+theme_cowplot()+ggtitle("Number of expressed genes by cells")
-}
+# UmapNbGenesCell <- function(obj, sizePoint){#Get umap with number of genes by cells. 
+#   coord_Umap <- Embeddings(obj[["umap"]])[,1:2]
+#   expressed_cells <- cbind.data.frame(counts=colSums(obj@assays$RNA@data > 0),coord_Umap)
+#   ggplot(expressed_cells, aes(UMAP_1,UMAP_2, color = counts))+geom_point(shape =20, size=sizePoint)+scale_color_gradient(low="lightgrey", high="blue")+theme_cowplot()+ggtitle("Number of expressed genes by cells")
+# }
 
 makeVlnGreatAgain <- function(obj,var, grouping, col = 1){ #Create violin plot for features and group by the annotation/resolution needed
   VlnPlot(object = obj, features = var, group.by = grouping, ncol = col, pt.size = 0 )
