@@ -80,11 +80,7 @@ server <- function(input, output,session) {
         shinyjs::show("Refresh")
         shinyjs::disable("Refresh")
         #Hide all buttons from first page so the user will need to reload the page if he want to see another file
-# <<<<<<< HEAD
-#         for(i in c("createSeurat","choiceFile","file","listFiles","header","separator","GeneFile","CellsFile","MatrixFile","InputFile","Metadata","MinGeneByCells","MinCells","download_barplot_before_after","InfoToPlotFilter","BooleanColorsFilter","downloadColorFileFilter","download_cell_cycle","download_choice_filter","download_clustering_plot","showlabelcc", "showlabelfilter","showlabelcluster","downloadAfterFiltering","download_nb_cells_dt","download_UMAP_nb_genes_cells","downloadbatchVizu","showlabelBatch", "FeatureName","Scina_annot_DL","Probabilities_Dl","Proba_selection","pointSizeNbCell","pointSizeBatch", "download_datatable_mean_gene_Filter", "Condition")){
-# =======
         for(i in c("createSeurat","choiceFile","file","listFiles","header","separator","GeneFile","CellsFile","MatrixFile","InputFile","Metadata","MinGeneByCells","MinCells","downloadUMAP_nCountRNA","download_barplot_before_after","InfoToPlotFilter","BooleanColorsFilter","downloadColorFileFilter","download_cell_cycle","download_choice_filter","download_clustering_plot", "downloadUMAP_PercentMt","showlabelcc", "showlabelfilter","showlabelcluster","downloadAfterFiltering","download_nb_cells_dt","download_UMAP_nb_genes_cells","downloadbatchVizu","showlabelBatch", "FeatureName","Scina_annot_DL","Probabilities_Dl","Proba_selection","pointSizeNbCell","pointSizeBatch","integration")){
-# >>>>>>> development
           shinyjs::hide(i)
         }
         ##Loading data and create seurat object
@@ -106,22 +102,10 @@ server <- function(input, output,session) {
             if(input$file == "Txt"){
               seuratObj <- Readtxt_files(txt_files = input$InputFile, metadataFiles = input$Metadata, header = input$header, separator = input$separator, minGenebyCells = input$MinGeneByCells , minCells = input$MinCells)
             }
-# <<<<<<< HEAD
-#             
-#           seuratObj[["percent.mt"]] <- PercentageFeatureSet(seuratObj, pattern = "^mt-")
-#              
-#             output$BeforeFiltering <- renderPlot({
-#               MakeComplicatedVln(seuratObj,var = "orig.ident", "QC before subsetting datasets",  minGenePerCell = input$minGenePerCells, maxGenePerCell = input$maxGenePerCells, maxCountPerCells = input$maxCountPerCells,percentMito = input$percentMito)
-#             })
-#             
-#             output$nFeatureBeforeFilter <- renderPlot({
-#               VlnWithThresholdAppearance(obj = seuratObj, var = "nFeature_RNA", threshold = c(input$minGenePerCells, input$maxGenePerCells))
-# =======
             seuratObj[["percent.mt"]] <- PercentageFeatureSet(seuratObj, pattern = "^mt-", assay = "RNA")
              output$PreProcessPlot <- renderPlot({
                 makeVlnGreatAgain(seuratObj, grouping = "orig.ident",var = c("nFeature_RNA", "nCount_RNA", "percent.mt"), ncol = 3)
-# >>>>>>> development
-            })
+              })
             output$downloadnFeatureBeforeFiltering <- downloadHandler(
               filename = "VlnPlot_nFeature_before_Filt.tiff",
               content=function(file){
@@ -215,40 +199,7 @@ server <- function(input, output,session) {
             })
             observeEvent(input$runFiltNorm,{
                 shinyjs::disable("runFiltNorm")
-# <<<<<<< HEAD
-#                 SeuratObjsubset <- subset(seuratObj, subset = nFeature_RNA > input$minGenePerCells & nFeature_RNA < input$maxGenePerCells & percent.mt < input$percentMito & nCount_RNA < input$maxCountPerCells)
-#                 withProgress(message = "Normalizing data", value = 0,{
-#                     if(input$normalization == "SCTransform"){
-#                         
-#                         SeuratObjsubset <- SCTransform(SeuratObjsubset)
-#                         incProgress(1)
-#                         
-#                     }else{
-#                         SeuratObjsubset <- NormalizeData(SeuratObjsubset)
-#                         incProgress(1/3)
-#                         SeuratObjsubset <- FindVariableFeatures(SeuratObjsubset)
-#                         incProgress(1/3)
-#                         SeuratObjsubset <- ScaleData(SeuratObjsubset)
-#                         incProgress(1/3)
-#                     }
-#                 })
-#                 withProgress(message = "Running PCA", value = 0,{
-#                     SeuratObjsubset <- RunPCA(SeuratObjsubset)
-#                     incProgress(1/3,message ="Finish PCA")
-#                     SeuratObjsubset <- FindNeighbors(SeuratObjsubset)
-#                     incProgress(1/3,message ="Running Umap")
-#                     SeuratObjsubset <- RunUMAP(SeuratObjsubset, dims = 1:30)
-#                     incProgress(1/3,message ="Finish Umap")
-#                 })
-#                 withProgress(message = "Clustering data", value = 0, {
-#                     inc <- (input$Resolution[2]-input$Resolution[1])/input$ResolutionStep
-#                     for(i in seq(input$Resolution[1],input$Resolution[2], input$ResolutionStep)){
-#                         SeuratObjsubset <- FindClusters(SeuratObjsubset, res = i)
-#                         incProgress(1/inc)
-#                     } 
-#                 })
-#                 for(i in c("downloadSeurat","downloadLogFile","NameSeuratLog","download_barplot_before_after","InfoToPlotFilter","BooleanColorsFilter","downloadColorFileFilter","download_cell_cycle","download_choice_filter","download_clustering_plot","showlabelcc", "showlabelfilter","showlabelcluster","downloadAfterFiltering","download_nb_cells_dt","download_UMAP_nb_genes_cells","downloadbatchVizu","showlabelBatch","pointSizeNbCell","pointSizeBatch", "download_datatable_mean_gene_Filter", "Condition")){
-# =======
+
                 if(input$integration == 0){
                   SeuratObjsubset <- Preprocessing_seuratObject(seuratObj, normalization = input$normalization, minGenes = input$minGenePerCells, maxGenes = input$maxGenePerCells, maxCount = input$maxCountPerCells, maxPercent = input$percentMito, resMin = input$Resolution[1], resMax = input$Resolution[2], resStep = input$ResolutionStep)
                 }else{
@@ -288,7 +239,6 @@ server <- function(input, output,session) {
                 updateSelectizeInput(session, "coordinateUmapCluster", choices=available_umap, server=TRUE)
                 updateSelectizeInput(session, "coordinateUmapBatch", choices=available_umap, server=TRUE)
                 for(i in c("downloadSeurat","downloadLogFile","NameSeuratLog","download_barplot_before_after","InfoToPlotFilter","BooleanColorsFilter","downloadColorFileFilter","download_cell_cycle","downloadUMAP_nCountRNA","download_choice_filter", "downloadUMAP_PercentMt","download_clustering_plot","showlabelcc", "showlabelfilter","showlabelcluster","downloadAfterFiltering","download_nb_cells_dt","download_UMAP_nb_genes_cells","downloadbatchVizu","showlabelBatch","pointSizeNbCell","pointSizeBatch")){
-#>>>>>>> development
                   shinyjs::show(i)
                 }
                 observe({
