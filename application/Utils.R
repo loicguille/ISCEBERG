@@ -21,11 +21,11 @@ library(colourpicker)
 
 
 
-vizu_UMAP <- function(obj, var, dlabel = TRUE, color = NULL, color_list = NULL, BoolCol = FALSE, sizePoint = NULL){ # Get vizualization with or without labels for download
+vizu_UMAP <- function(obj, var, dlabel = TRUE, color = NULL, color_list = NULL, BoolCol = FALSE, sizePoint = NULL, reductionUMAP = NULL){ # Get vizualization with or without labels for download
   if(!is.null(color_list[[var]]$color) && BoolCol == TRUE){
     color <- unlist(color_list[[var]]$color)
   }
-  DimPlot(obj,group.by = var, label = dlabel, label.size = 6, cols = color, pt.size = sizePoint)
+  DimPlot(obj,group.by = var, label = dlabel, reduction = reductionUMAP,label.size = 6, cols = color, pt.size = sizePoint, order = sort(levels(obj),decreasing = T))
 }
 
 

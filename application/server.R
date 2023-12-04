@@ -32,6 +32,8 @@ source("ReadFile.R")
 source("Automatic_annot_SCINA.R")
 source("New_SCINA.R")
 source("write_output_download.R")
+source("Preprocessing_data.R")
+source("Integration.R")
 options(shiny.maxRequestSize =100000*1024^2)
 
 
@@ -78,7 +80,11 @@ server <- function(input, output,session) {
         shinyjs::show("Refresh")
         shinyjs::disable("Refresh")
         #Hide all buttons from first page so the user will need to reload the page if he want to see another file
-        for(i in c("createSeurat","choiceFile","file","listFiles","header","separator","GeneFile","CellsFile","MatrixFile","InputFile","Metadata","MinGeneByCells","MinCells","download_barplot_before_after","InfoToPlotFilter","BooleanColorsFilter","downloadColorFileFilter","download_cell_cycle","download_choice_filter","download_clustering_plot","showlabelcc", "showlabelfilter","showlabelcluster","downloadAfterFiltering","download_nb_cells_dt","download_UMAP_nb_genes_cells","downloadbatchVizu","showlabelBatch", "FeatureName","Scina_annot_DL","Probabilities_Dl","Proba_selection","pointSizeNbCell","pointSizeBatch", "download_datatable_mean_gene_Filter", "Condition")){
+# <<<<<<< HEAD
+#         for(i in c("createSeurat","choiceFile","file","listFiles","header","separator","GeneFile","CellsFile","MatrixFile","InputFile","Metadata","MinGeneByCells","MinCells","download_barplot_before_after","InfoToPlotFilter","BooleanColorsFilter","downloadColorFileFilter","download_cell_cycle","download_choice_filter","download_clustering_plot","showlabelcc", "showlabelfilter","showlabelcluster","downloadAfterFiltering","download_nb_cells_dt","download_UMAP_nb_genes_cells","downloadbatchVizu","showlabelBatch", "FeatureName","Scina_annot_DL","Probabilities_Dl","Proba_selection","pointSizeNbCell","pointSizeBatch", "download_datatable_mean_gene_Filter", "Condition")){
+# =======
+        for(i in c("createSeurat","choiceFile","file","listFiles","header","separator","GeneFile","CellsFile","MatrixFile","InputFile","Metadata","MinGeneByCells","MinCells","downloadUMAP_nCountRNA","download_barplot_before_after","InfoToPlotFilter","BooleanColorsFilter","downloadColorFileFilter","download_cell_cycle","download_choice_filter","download_clustering_plot", "downloadUMAP_PercentMt","showlabelcc", "showlabelfilter","showlabelcluster","downloadAfterFiltering","download_nb_cells_dt","download_UMAP_nb_genes_cells","downloadbatchVizu","showlabelBatch", "FeatureName","Scina_annot_DL","Probabilities_Dl","Proba_selection","pointSizeNbCell","pointSizeBatch","integration")){
+# >>>>>>> development
           shinyjs::hide(i)
         }
         ##Loading data and create seurat object
@@ -100,15 +106,21 @@ server <- function(input, output,session) {
             if(input$file == "Txt"){
               seuratObj <- Readtxt_files(txt_files = input$InputFile, metadataFiles = input$Metadata, header = input$header, separator = input$separator, minGenebyCells = input$MinGeneByCells , minCells = input$MinCells)
             }
-            
-          seuratObj[["percent.mt"]] <- PercentageFeatureSet(seuratObj, pattern = "^mt-")
-             
-            output$BeforeFiltering <- renderPlot({
-              MakeComplicatedVln(seuratObj,var = "orig.ident", "QC before subsetting datasets",  minGenePerCell = input$minGenePerCells, maxGenePerCell = input$maxGenePerCells, maxCountPerCells = input$maxCountPerCells,percentMito = input$percentMito)
-            })
-            
-            output$nFeatureBeforeFilter <- renderPlot({
-              VlnWithThresholdAppearance(obj = seuratObj, var = "nFeature_RNA", threshold = c(input$minGenePerCells, input$maxGenePerCells))
+# <<<<<<< HEAD
+#             
+#           seuratObj[["percent.mt"]] <- PercentageFeatureSet(seuratObj, pattern = "^mt-")
+#              
+#             output$BeforeFiltering <- renderPlot({
+#               MakeComplicatedVln(seuratObj,var = "orig.ident", "QC before subsetting datasets",  minGenePerCell = input$minGenePerCells, maxGenePerCell = input$maxGenePerCells, maxCountPerCells = input$maxCountPerCells,percentMito = input$percentMito)
+#             })
+#             
+#             output$nFeatureBeforeFilter <- renderPlot({
+#               VlnWithThresholdAppearance(obj = seuratObj, var = "nFeature_RNA", threshold = c(input$minGenePerCells, input$maxGenePerCells))
+# =======
+            seuratObj[["percent.mt"]] <- PercentageFeatureSet(seuratObj, pattern = "^mt-", assay = "RNA")
+             output$PreProcessPlot <- renderPlot({
+                makeVlnGreatAgain(seuratObj, grouping = "orig.ident",var = c("nFeature_RNA", "nCount_RNA", "percent.mt"), ncol = 3)
+# >>>>>>> development
             })
             output$downloadnFeatureBeforeFiltering <- downloadHandler(
               filename = "VlnPlot_nFeature_before_Filt.tiff",
@@ -152,14 +164,18 @@ server <- function(input, output,session) {
                 print(MakeComplicatedVln(seuratObj,var = "orig.ident", "QC before subsetting datasets", minGenePerCell = input$minGenePerCells, maxGenePerCell = input$maxGenePerCells, maxCountPerCells = input$maxCountPerCells,percentMito = input$percentMito))
                 dev.off()
               })
+            
             if(rdsbool == FALSE){
+                toremove <- c(grep(names(seuratObj@meta.data),pattern ="nCount_*", value =T),grep(names(seuratObj@meta.data),pattern ="nFeature_*", value =T),"percent.mt")
+                var2regress <- names(seuratObj@meta.data)
+                var2regress <- var2regress[-which(var2regress %in% toremove)]
+                updateSelectizeInput(session, "var2regress", choices=var2regress, server=TRUE)
                 showTab(inputId = "tabs", target = "filtering")
                 shinyjs::hide("downloadSeurat")
                 shinyjs::hide("downloadLogFile")
                 shinyjs::hide("NameSeuratLog")
                 shinyjs::enable("Refresh")
             }else{
-                
                 showTab(inputId = "tabs", target = "QC")
                 showTab(inputId = "tabs", target = "Cluster tree")
                 showTab(inputId = "tabs", target = "DE between clusters")
@@ -186,40 +202,93 @@ server <- function(input, output,session) {
             #shinyjs::show("Refresh")
         })
         if(rdsbool == FALSE){
+            listenIntegration <- reactive({
+              list <- c(input$integMethod,input$integration)
+            })
+            observeEvent(listenIntegration(),{
+              if(input$integration == 1 && "STACAS" %in% input$integMethod){
+                updateRadioButtons(session,"normalization", selected = "LogNormalisation")
+                shinyjs::disable(id = "normalization")
+              }else{
+                shinyjs::enable(id = "normalization")
+              }
+            })
             observeEvent(input$runFiltNorm,{
                 shinyjs::disable("runFiltNorm")
-                SeuratObjsubset <- subset(seuratObj, subset = nFeature_RNA > input$minGenePerCells & nFeature_RNA < input$maxGenePerCells & percent.mt < input$percentMito & nCount_RNA < input$maxCountPerCells)
-                withProgress(message = "Normalizing data", value = 0,{
-                    if(input$normalization == "SCTransform"){
-                        
-                        SeuratObjsubset <- SCTransform(SeuratObjsubset)
-                        incProgress(1)
-                        
-                    }else{
-                        SeuratObjsubset <- NormalizeData(SeuratObjsubset)
-                        incProgress(1/3)
-                        SeuratObjsubset <- FindVariableFeatures(SeuratObjsubset)
-                        incProgress(1/3)
-                        SeuratObjsubset <- ScaleData(SeuratObjsubset)
-                        incProgress(1/3)
-                    }
-                })
-                withProgress(message = "Running PCA", value = 0,{
-                    SeuratObjsubset <- RunPCA(SeuratObjsubset)
-                    incProgress(1/3,message ="Finish PCA")
-                    SeuratObjsubset <- FindNeighbors(SeuratObjsubset)
-                    incProgress(1/3,message ="Running Umap")
-                    SeuratObjsubset <- RunUMAP(SeuratObjsubset, dims = 1:30)
-                    incProgress(1/3,message ="Finish Umap")
-                })
-                withProgress(message = "Clustering data", value = 0, {
-                    inc <- (input$Resolution[2]-input$Resolution[1])/input$ResolutionStep
-                    for(i in seq(input$Resolution[1],input$Resolution[2], input$ResolutionStep)){
-                        SeuratObjsubset <- FindClusters(SeuratObjsubset, res = i)
-                        incProgress(1/inc)
-                    } 
-                })
-                for(i in c("downloadSeurat","downloadLogFile","NameSeuratLog","download_barplot_before_after","InfoToPlotFilter","BooleanColorsFilter","downloadColorFileFilter","download_cell_cycle","download_choice_filter","download_clustering_plot","showlabelcc", "showlabelfilter","showlabelcluster","downloadAfterFiltering","download_nb_cells_dt","download_UMAP_nb_genes_cells","downloadbatchVizu","showlabelBatch","pointSizeNbCell","pointSizeBatch", "download_datatable_mean_gene_Filter", "Condition")){
+# <<<<<<< HEAD
+#                 SeuratObjsubset <- subset(seuratObj, subset = nFeature_RNA > input$minGenePerCells & nFeature_RNA < input$maxGenePerCells & percent.mt < input$percentMito & nCount_RNA < input$maxCountPerCells)
+#                 withProgress(message = "Normalizing data", value = 0,{
+#                     if(input$normalization == "SCTransform"){
+#                         
+#                         SeuratObjsubset <- SCTransform(SeuratObjsubset)
+#                         incProgress(1)
+#                         
+#                     }else{
+#                         SeuratObjsubset <- NormalizeData(SeuratObjsubset)
+#                         incProgress(1/3)
+#                         SeuratObjsubset <- FindVariableFeatures(SeuratObjsubset)
+#                         incProgress(1/3)
+#                         SeuratObjsubset <- ScaleData(SeuratObjsubset)
+#                         incProgress(1/3)
+#                     }
+#                 })
+#                 withProgress(message = "Running PCA", value = 0,{
+#                     SeuratObjsubset <- RunPCA(SeuratObjsubset)
+#                     incProgress(1/3,message ="Finish PCA")
+#                     SeuratObjsubset <- FindNeighbors(SeuratObjsubset)
+#                     incProgress(1/3,message ="Running Umap")
+#                     SeuratObjsubset <- RunUMAP(SeuratObjsubset, dims = 1:30)
+#                     incProgress(1/3,message ="Finish Umap")
+#                 })
+#                 withProgress(message = "Clustering data", value = 0, {
+#                     inc <- (input$Resolution[2]-input$Resolution[1])/input$ResolutionStep
+#                     for(i in seq(input$Resolution[1],input$Resolution[2], input$ResolutionStep)){
+#                         SeuratObjsubset <- FindClusters(SeuratObjsubset, res = i)
+#                         incProgress(1/inc)
+#                     } 
+#                 })
+#                 for(i in c("downloadSeurat","downloadLogFile","NameSeuratLog","download_barplot_before_after","InfoToPlotFilter","BooleanColorsFilter","downloadColorFileFilter","download_cell_cycle","download_choice_filter","download_clustering_plot","showlabelcc", "showlabelfilter","showlabelcluster","downloadAfterFiltering","download_nb_cells_dt","download_UMAP_nb_genes_cells","downloadbatchVizu","showlabelBatch","pointSizeNbCell","pointSizeBatch", "download_datatable_mean_gene_Filter", "Condition")){
+# =======
+                if(input$integration == 0){
+                  SeuratObjsubset <- Preprocessing_seuratObject(seuratObj, normalization = input$normalization, minGenes = input$minGenePerCells, maxGenes = input$maxGenePerCells, maxCount = input$maxCountPerCells, maxPercent = input$percentMito, resMin = input$Resolution[1], resMax = input$Resolution[2], resStep = input$ResolutionStep)
+                }else{
+                  SeuratObjsubset <- Integration_according_to_interest(seuratObj, method = input$integMethod , normalization = input$normalization, minGenes = input$minGenePerCells, maxGenes = input$maxGenePerCells, maxCounts = input$maxCountPerCells, maxPercent = input$percentMito, minRes = input$Resolution[1], maxRes = input$Resolution[2], StepRes =  input$ResolutionStep, reductionUsed = input$ccaORrpca, varReg = input$var2regress)
+                  output$testBatchCorrection <- renderPlot({
+                      CreatePlotIntegration(object = SeuratObjsubset,batch = "file", method = input$integMethod)
+                  })
+                }
+                  # }else if(input$integMethod == "harmony"){
+                #   SeuratObjsubset <- Preprocessing_seuratObject(seuratObj, normalization = input$normalization, minGenes = input$minGenePerCells, maxGenes = input$maxGenePerCells, maxCount = input$maxCountPerCells, maxPercent = input$percentMito, resMin = input$Resolution[1], resMax = input$Resolution[2], resStep =  input$ResolutionStep)
+                #   SeuratObjsubset <- harmony_integration(SeuratObjsubset, varReg = input$var2regress,normalization = input$normalization, minRes =  input$Resolution[1], maxRes = input$Resolution[2], stepRes = input$ResolutionStep)
+                #   output$testBatchCorrection <- renderPlot({
+                #     CreatePlotIntegration(object = SeuratObjsubset,batch = input$var2regress, method = "harmony")
+                #   })
+                # }else if(input$integMethod == "Seurat"){
+                #   SeuratObjsubset <- Seurat_integration(object = seuratObj, minGenes = input$minGenePerCells, maxGenes = input$maxGenePerCells, maxCount = input$maxCountPerCells, maxPercent = input$percentMito, reductionUsed = input$ccaORrpca, normalization = input$normalization, minRes =  input$Resolution[1], maxRes = input$Resolution[2], StepRes = input$ResolutionStep)
+                #   SeuratObjsubset <- Preprocessing_seuratObject(SeuratObjsubset, normalization = input$normalization, minGenes = input$minGenePerCells, maxGenes = input$maxGenePerCells, maxCount = input$maxCountPerCells, maxPercent = input$percentMito, resMin = input$Resolution[1], resMax = input$Resolution[2], resStep =  input$ResolutionStep)
+                #   output$testBatchCorrection <- renderPlot({
+                #     CreatePlotIntegration(object = SeuratObjsubset,batch = "file", method = "seurat")
+                #   })
+                # }else if(input$integMethod == "STACAS"){
+                #   SeuratObjsubset <- STACAS_integration(object = seuratObj, minGenes = input$minGenePerCells, maxGenes = input$maxGenePerCells, maxCounts = input$maxCountPerCells, maxPercent = input$percentMito, minRes =  input$Resolution[1], maxRes = input$Resolution[2], stepRes = input$ResolutionStep)
+                #   SeuratObjsubset <- Preprocessing_seuratObject(SeuratObjsubset, normalization = input$normalization, minGenes = input$minGenePerCells, maxGenes = input$maxGenePerCells, maxCount = input$maxCountPerCells, maxPercent = input$percentMito, resMin = input$Resolution[1], resMax = input$Resolution[2], resStep =  input$ResolutionStep)
+                #   output$testBatchCorrection <- renderPlot({
+                #     CreatePlotIntegration(object = SeuratObjsubset,batch = "file", method = "stacas")
+                #   })
+                # }
+                # if("Seurat" %in% input$integMethod){
+                #   SeuratObj
+                # }
+                available_umap <- grep(names(SeuratObjsubset@reductions), pattern = "umap*", value = TRUE)
+                print(available_umap)
+                updateSelectizeInput(session, "coordinateUmapNbGene", choices=available_umap, server=TRUE)
+                updateSelectizeInput(session, "coordinateUmapNbCount", choices=available_umap, server=TRUE)
+                updateSelectizeInput(session, "coordinateUmapPercentMt", choices=available_umap, server=TRUE)
+                updateSelectizeInput(session, "coordinateUmapCellCycle", choices=available_umap, server=TRUE)
+                updateSelectizeInput(session, "coordinateUmapCluster", choices=available_umap, server=TRUE)
+                updateSelectizeInput(session, "coordinateUmapBatch", choices=available_umap, server=TRUE)
+                for(i in c("downloadSeurat","downloadLogFile","NameSeuratLog","download_barplot_before_after","InfoToPlotFilter","BooleanColorsFilter","downloadColorFileFilter","download_cell_cycle","downloadUMAP_nCountRNA","download_choice_filter", "downloadUMAP_PercentMt","download_clustering_plot","showlabelcc", "showlabelfilter","showlabelcluster","downloadAfterFiltering","download_nb_cells_dt","download_UMAP_nb_genes_cells","downloadbatchVizu","showlabelBatch","pointSizeNbCell","pointSizeBatch")){
+#>>>>>>> development
                   shinyjs::show(i)
                 }
                 observe({
@@ -245,32 +314,8 @@ server <- function(input, output,session) {
                         paste0(input$NameSeuratLog,"_log.html")
                     },
                     content = function(file){
-                      tempReport <- file.path(tempdir(),"logFile.Rmd")
-                      file.copy("logFile.Rmd",tempReport ,overwrite = TRUE)
-                      command <- list()
-                      line <- paste0("SeuratObjsubset <- subset(seuratObj, subset = nFeature_RNA > ",input$minGenePerCells," & nFeature_RNA < ",input$maxGenePerCells," & nCount_RNA < ",input$maxCountPerCells," & percent.mt < ",input$percentMito,")")
-                      command <- append(command,line)
-                      
-                      if(input$normalization == "SCTransform"){
-                          line <- paste0("SeuratObjsubset <- SCTransform(SeuratObjsubset)")
-                          command <- append(command,line)
-                      }else{
-                          line <- paste0("SeuratObjsubset <- NormalizeData(SeuratObjsubset)")
-                          command <- append(command,line)
-                          line <- paste0("SeuratObjsubset <- FindVariableFeatures(SeuratObjsubset)")
-                          command <- append(command,line)
-                          line <- paste0("SeuratObjsubset <- ScaleData(SeuratObjsubset)")
-                          command <- append(command,line)
+                      write_rmarkdown_report_preprocessing(name_file = file, normalization = input$normalization, minGenes = input$minGenePerCells, maxGenes = input$maxGenePerCells, maxCount = input$maxCountPerCells, maxPercent = input$percentMito, resMin = input$Resolution[1], resMax = input$Resolution[2],resStep = input$ResolutionStep)
                       }
-                      command <- append(command,"SeuratObjsubset <- RunPCA(SeuratObjsubset)")
-                      command <- append(command,"SeuratObjsubset <- FindNeighbors(SeuratObjsubset)")
-                      command <- append(command,"SeuratObjsubset <- RunUMAP(SeuratObjsubset, dims = 1:30)")
-                      for(i in seq(input$Resolution[1],input$Resolution[2], input$ResolutionStep)){
-                        command <- append(command,paste0("SeuratObjsubset <- FindClusters(SeuratObjsubset, res =", i,")"))
-                      }
-                      params <- list(use = command)
-                      rmarkdown::render(tempReport,output_file = file,params = params, envir = new.env(parent = globalenv()))
-                    }
                 )
                 
                 shinyjs::enable("runFiltNorm")
@@ -325,13 +370,13 @@ server <- function(input, output,session) {
                     dev.off()
                   })
                 output$clusteringPlot <- renderPlot({
-                    vizu_UMAP(SeuratObjsubset, var = NULL, dlabel = input$showlabelcluster)
+                    vizu_UMAP(SeuratObjsubset, var = NULL, dlabel = input$showlabelcluster, reductionUMAP = input$coordinateUmapCluster)
                 })
                 output$download_clustering_plot<- downloadHandler(
                   filename="UMAP_orig_ident.tiff",
                   content=function(file){
                     tiff(file, width = 900 , height = 600,res = 100)
-                    print(vizu_UMAP(SeuratObjsubset, var=NULL, dlabel = input$showlabelcluster))
+                    print(vizu_UMAP(SeuratObjsubset, var=NULL, dlabel = input$showlabelcluster, reductionUMAP = input$coordinateUmapCluster))
                     dev.off()
                   })
                 
@@ -383,13 +428,13 @@ server <- function(input, output,session) {
                     validate(
                         need(try(SeuratObjsubset[["Phase"]]!=""),message = "No phase available in this seurat object")
                     )
-                    vizu_UMAP(SeuratObjsubset, var = "Phase", dlabel = input$showlabelcc,color_list = list_Color_Label, BoolCol = input$BooleanColorsFilter)
+                    vizu_UMAP(SeuratObjsubset, var = "Phase", dlabel = input$showlabelcc,color_list = list_Color_Label, BoolCol = input$BooleanColorsFilter, reductionUMAP = input$coordinateUmapCellCycle)
                 })
                 output$download_cell_cycle<- downloadHandler(
                   filename="UMAP_cell_cycle.tiff",
                   content=function(file){
                     tiff(file, width = 900 , height = 600,res = 100)
-                    print(vizu_UMAP(SeuratObjsubset, var="Phase", dlabel = input$showlabelcc, color_list = list_Color_Label, BoolCol = input$BooleanColorsFilter))
+                    print(vizu_UMAP(SeuratObjsubset, var="Phase", dlabel = input$showlabelcc, color_list = list_Color_Label, BoolCol = input$BooleanColorsFilter, reductionUMAP = input$coordinateUmapCellCycle))
                     dev.off()
                   })
                 output$nbcells_by_datasets <- renderPlot({
@@ -403,23 +448,49 @@ server <- function(input, output,session) {
                     dev.off()
                   })
                 output$geneExpByCell <- renderPlot({
-                  UmapNbGenesCell(SeuratObjsubset, sizePoint = input$pointSizeNbCell)
+                  #UmapNbGenesCell(SeuratObjsubset, sizePoint = input$pointSizeNbCell)
+                  FeaturePlot(SeuratObjsubset, features = "nFeature_RNA", reduction = input$coordinateUmapNbGene, raster = F)+ggtitle("Number of expressed genes by cell")
                 })
                 output$download_nb_cells_dt<- downloadHandler(
                   filename="UMAP_nb_genes_by_cells.tiff",
                   content=function(file){
                     tiff(file, width = 900 , height = 600,res = 100)
-                    print(UmapNbGenesCell(SeuratObjsubset, sizePoint = input$pointSizeNbCell))
+                    print(FeaturePlot(SeuratObjsubset, features = "nFeature_RNA", reduction = input$coordinateUmapNbGene, raster = F)+ggtitle("Number of expressed genes by cell"))
                     dev.off()
                   })
+                
+                output$UMAP_percent.mito <- renderPlot({
+                  FeaturePlot(SeuratObjsubset, features = "percent.mt", reduction = input$coordinateUmapPercentMt, raster = F)+ggtitle("Percent mitochondrial genes by cell")
+                })
+                
+                output$downloadUMAP_PercentMt<- downloadHandler(
+                  filename="UMAP_PercentMt.tiff",
+                  content=function(file){
+                    tiff(file, width = 900 , height = 600,res = 100)
+                    print(FeaturePlot(SeuratObjsubset, features = "percent.mt", reduction = input$coordinateUmapPercentMt, raster = F)+ggtitle("Percent mitochondrial genes by cell"))
+                    dev.off()
+                  })
+                
+                output$UMAP_nCount_RNA <- renderPlot({
+                  FeaturePlot(SeuratObjsubset, features = "nCount_RNA", reduction = input$coordinateUmapNbCount, raster = F)+ggtitle("Number of UMI by cell")
+                })
+                
+                output$downloadUMAP_nCountRNA<- downloadHandler(
+                  filename="UMAP_nCountRNA.tiff",
+                  content=function(file){
+                    tiff(file, width = 900 , height = 600,res = 100)
+                    print(FeaturePlot(SeuratObjsubset, features = "nCount_RNA", reduction = input$coordinateUmapNbCount ,raster = F)+ggtitle("Number of UMI by cell"))
+                    dev.off()
+                  })
+                
                 output$BatchVizu <- renderPlot({
-                  vizu_UMAP(SeuratObjsubset, var = "file", dlabel = input$showlabelBatch, color_list = list_Color_Label, BoolCol = input$BooleanColorsFilter)
+                  vizu_UMAP(SeuratObjsubset, var = "file", dlabel = input$showlabelBatch, color_list = list_Color_Label, BoolCol = input$BooleanColorsFilter, reductionUMAP = input$coordinateUmapBatch)
                 })
                 output$downloadbatchVizu<- downloadHandler(
                   filename="UMAP_batch_visu.tiff",
                   content=function(file){
                     tiff(file, width = 900 , height = 600,res = 100)
-                    print(vizu_UMAP(SeuratObjsubset, var = "file", dlabel = input$showlabelBatch, color_list = list_Color_Label, BoolCol = input$BooleanColorsFilter))
+                    print(vizu_UMAP(SeuratObjsubset, var = "file", dlabel = input$showlabelBatch, color_list = list_Color_Label, BoolCol = input$BooleanColorsFilter, reductionUMAP = input$coordinateUmapBatch))
                     dev.off()
                   })
                 
@@ -441,14 +512,14 @@ server <- function(input, output,session) {
                   if(input$BooleanColorsFilter == TRUE){
                     shinyjs::show("myPanelFilter")
                     cols <- reactive({
-                      lapply(seq_along(levels(SeuratObjsubset)), function(i) {
+                      lapply(seq_along(sort(levels(SeuratObjsubset))), function(i) {
                         colourpicker::colourInput(paste("col", i, sep="_"), paste("Choose colour for",orderLevel[i]), "black")
                       })
                     })
                     output$myPanelFilter <- renderUI({cols()})
                     # Put all the input in a vector
                     colors <- reactive({
-                      lapply(seq_along(levels(SeuratObjsubset)), function(i) {
+                      lapply(seq_along(sort(levels(SeuratObjsubset))), function(i) {
                         input[[paste("col", i, sep="_")]]
                       })
                     })
@@ -1413,10 +1484,10 @@ server <- function(input, output,session) {
                   shinyjs::show("Probabilities_Dl")
                   shinyjs::show("Proba_selection")
                   output$Results_annotation <- renderPlot(
-                    Dimplot_with_ggplot(object = SeuratObjsubset, group = input$slotNameAnnotScina)
+                    Dimplot_with_ggplot(object = SeuratObjsubset, group = input$slotNameAnnotScina, CellsSize = input$SizeCellsScinaAnnot)
                   )
                   output$Probabilities <- renderPlot(
-                    FeaturePlot_proba(SeuratObjsubset, proba_col = input$Proba_selection, slotNameAnnot = input$slotNameAnnotScina)
+                    FeaturePlot_proba(SeuratObjsubset, proba_col = input$Proba_selection, slotNameAnnot = input$slotNameAnnotScina, CellsSize = input$SizeCellsScinaProba)
                   )
                   output$Scina_annot_DL <- downloadHandler(
                     filename = "Scina_annotation_results.tiff",
@@ -1628,6 +1699,7 @@ server <- function(input, output,session) {
                 })
                 observeEvent(input$dosubcluster,{ #we do not normalize data once the subset is done
                   shinyjs::disable("dosubcluster")
+                  subsetSeuratObj <<- FindVariableFeatures(subsetSeuratObj)
                   withProgress(message = "Renormalizing data", value = 0,{
                     incProgress(1/4,message ="Running PCA")
                     subsetSeuratObj <<- RunPCA(subsetSeuratObj)
@@ -1711,6 +1783,7 @@ server <- function(input, output,session) {
                     }else{
                       command <- append(command,paste0("subsetSeuratObj <- subset(SeuratObjsubset, subset = ",input$whichAnnot," == ",list(input$subannot),")"))
                     }
+                    command <- append(command,("subsetSeuratObj <- FindVariableFeatures(subsetSeuratObj)"))
                     command <- append(command,("subsetSeuratObj <- RunPCA(subsetSeuratObj)"))
                     command <- append(command,("subsetSeuratObj <- FindNeighbors(subsetSeuratObj)"))
                     command <- append(command,("subsetSeuratObj <- RunUMAP(subsetSeuratObj, dims = 1:30)"))
@@ -1729,6 +1802,13 @@ server <- function(input, output,session) {
             ####################################
             ############ QC metrics ############
             ####################################
+            for(i in names(seuratObj)){
+              if(i == "integrated"){
+                DefaultAssay(seuratObj) <- "integrated"
+                shinyalert("information", "The dataset loaded contain an assay integrated and this will be the assay used by default\nThe DE is also not usable with this type of object",type = "info")
+                hideTab(inputId = "tabs", target = "DE between clusters")
+              }
+            }
             available_metadata <- colnames(seuratObj@meta.data)
             available_metadata <- available_metadata[-which(available_metadata %in% c("nCount_RNA","nFeature_RNA","percent.mt","S.Score", "G2M.Score","nCount_SCT", "nFeature_SCT"))]
             updateSelectizeInput(session, "metadata", choices = available_metadata, server = TRUE)
@@ -1802,7 +1882,7 @@ server <- function(input, output,session) {
             
             ## Hist nb cell by dataset
             output$nbcells_by_datasetsQC <- renderPlot({
-                nbCellsbydt(seuratObj)
+              nbCellsbydt(seuratObj)
             })
             output$downloadHistNbCells<- downloadHandler(
               filename="Hist_nb_cells_dt.tiff",
@@ -1814,13 +1894,37 @@ server <- function(input, output,session) {
             
             ## Nb gene by cell
             output$geneExpByCellQC <- renderPlot({
-                UmapNbGenesCell(seuratObj, sizePoint = input$pointSizeNbCellQC)
+              FeaturePlot(seuratObj, features = "nFeature_RNA", raster = F)+ggtitle("Number of expressed genes by cell")
             })
             output$downloadUMAP_gene_by_cell<- downloadHandler(
               filename="UMAP_Nb_gene_by_cell.tiff",
               content=function(file){
                 tiff(file, width = 800 , height = 600,res = 100)
-                print(UmapNbGenesCell(seuratObj, sizePoint = input$pointSizeNbCellQC))
+                print(FeaturePlot(seuratObj, features = "nFeature_RNA", raster = F)+ggtitle("Number of expressed genes by cell"))
+                dev.off()
+              })
+            
+            output$UMAP_percent.mito_QC <- renderPlot({
+              FeaturePlot(seuratObj, features = "percent.mt", raster = F)+ggtitle("Percent mitochondrial gene by cell")
+            })
+            
+            output$downloadUMAP_Percent.mt<- downloadHandler(
+              filename="UMAP_PercentMt.tiff",
+              content=function(file){
+                tiff(file, width = 800 , height = 600,res = 100)
+                print(FeaturePlot(seuratObj, features = "percent.mt", raster = F)+ggtitle("Percent mitochondrial gene by cell"))
+                dev.off()
+              })
+            
+            output$UMAP_nCount_RNA_QC <- renderPlot({
+              FeaturePlot(seuratObj, features = "nCount_RNA",raster = F)+ggtitle("Number of UMI by cell")
+            })
+            
+            output$downloadUMAP_nCount_RNA<- downloadHandler(
+              filename="UMAP_nCountRNA.tiff",
+              content=function(file){
+                tiff(file, width = 800 , height = 600,res = 100)
+                print(FeaturePlot(seuratObj, features = "nCount_RNA", raster = F)+ggtitle("Number of UMI by cell"))
                 dev.off()
               })
             
@@ -1850,14 +1954,14 @@ server <- function(input, output,session) {
               if(input$BooleanColors == TRUE){
                 shinyjs::show("myPanel")
                 cols <- reactive({
-                  lapply(seq_along(levels(seuratObj)), function(i) {
+                  lapply(seq_along(sort(levels(seuratObj))), function(i) {
                     colourpicker::colourInput(paste("col", i, sep="_"), paste("Choose colour for",orderLevel[i]), "black")
                   })
                 })
                 output$myPanel <- renderUI({cols()})
                 # Put all the input in a vector
                 colors <- reactive({
-                  lapply(seq_along(levels(seuratObj)), function(i) {
+                  lapply(seq_along(sort(levels(seuratObj))), function(i) {
                     input[[paste("col", i, sep="_")]]
                   })
                 })
@@ -2022,7 +2126,7 @@ server <- function(input, output,session) {
                   filename="featureplot.tiff",
                   content=function(file){
                     tiff(file, width = 800 , height = 600,res = 100)
-                    print(FeaturePlot(seuratObj, features = input$GeneList))
+                    print(FeaturePlot(seuratObj, features = input$GeneList, raster = F))
                     dev.off()
                   })
               })
@@ -3077,6 +3181,7 @@ server <- function(input, output,session) {
                                  },
                                  finally = subsetSeuratObj <<- RunPCA(subsetSeuratObj) )
                     }else{
+                        subsetSeuratObj <<- FindVariableFeatures(subsetSeuratObj)
                         subsetSeuratObj <<- RunPCA(subsetSeuratObj)
                     }
                     incProgress(1/4,message ="Finish running PCA")

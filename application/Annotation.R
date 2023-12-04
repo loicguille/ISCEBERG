@@ -11,6 +11,8 @@ library(grid)
 library(dplyr)
 library(gridExtra)
 
+#obj = seurat object, nameVar = name of existing annotation, annotation = text to put in annotation, resolution = chosen resolution for annotation
+#clusterToAnnotate = which cluster(s) will be annotated
 
 Annotation_existent <- function(obj, nameVar, annotation, resolution, clusterToAnnotate){
   f.clusters <- obj[[nameVar]]
