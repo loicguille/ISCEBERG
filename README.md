@@ -1,6 +1,6 @@
 [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.6563734.svg)](https://doi.org/10.5281/zenodo.6563734)
 
-# ISCEBERG
+# ISCEBERG v 2.0.1
 ## Interactive Single Cell Expression Browser for Exploration of RNAseq data using Graphics 
 
 <img src=application/www/iceberg2.png height="200">
@@ -29,7 +29,7 @@ All the functionnalities are listed here. For more details see the Documentation
 - Add automatic annotations using SCINA
 - Subclustering (subcluster data based on annotation or cluster)
 
-## Installation 
+## Installation from github
 
 Here is the procedure to install our application :
 
@@ -44,6 +44,20 @@ In order to create a docker image run the command
 Once the image has been created you can run
 
 `docker run -p 3838:3838 image_name`
+
+Then type the adress in your web browser :
+
+`localhost:3838`
+
+## Installation from dockerhub
+
+A build image can be accessed on dockerhub :
+
+`docker pull loguille/isceberg:v2.0.1`
+
+and then run :
+
+`docker run -p 3838:3838 loguille/isceberg:v2.0.1`
 
 Then type the adress in your web browser :
 
